@@ -758,8 +758,9 @@ $('#rec-go').addEventListener('click', async () => {
     const loans = S.loans.map(l => ({ title: l.title, author: l.author }));
     const r = await fetch('/api/recommend', { method: 'POST', headers: {'Content-Type':'application/json'},
       body: JSON.stringify({ history, loans, mood: $('#rec-mood').value.trim() }) });
-    if (!r.ok) throw new Error('Recommendation service returned ' + r.status);
-    const { recommendations } = await r.json();
+    const payload = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(payload.detail || payload.error || ('Recommendation service returned ' + r.status));
+    const { recommendations } = payload;
     if (!recommendations?.length) throw new Error('No suggestions came back');
     box.innerHTML = '<div class="note">Matching suggestions to downloadable copies…</div>';
     // Resolve each to a real Gutenberg record so "Add to shelf" works
@@ -773,7 +774,7 @@ $('#rec-go').addEventListener('click', async () => {
     })));
     renderHits(box, hits);
   } catch (e) {
-    box.innerHTML = `<div class="empty">${esc(e.message)}. The endpoint needs GEMINI_API_KEY set in Cloudflare Pages.</div>`;
+    box.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
   } finally { btn.disabled = false; btn.textContent = 'Ask for suggestions'; }
 });
 
