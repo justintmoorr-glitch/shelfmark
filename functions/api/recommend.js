@@ -2,6 +2,7 @@
 // Returns { recommendations:[{title, author, why, search}] } — public-domain titles only, via Gemini.
 // Needs GEMINI_API_KEY in the Cloudflare Pages dashboard (redeploy after setting it).
 const MODEL = 'gemini-2.5-flash';
+const FALLBACKS = ['gemini-2.0-flash', 'gemini-flash-latest'];
 
 export async function onRequestPost({ request, env }) {
   if (!env.GEMINI_API_KEY) return json({ error: 'GEMINI_API_KEY is not set' }, 500);
@@ -19,12 +20,29 @@ For each, give a short, specific reason (one sentence, referencing what the read
 Respond with JSON only, no markdown fences:
 {"recommendations":[{"title":"","author":"","why":"","search":""}]}`;
 
-  const r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${MODEL}:generateContent?key=${env.GEMINI_API_KEY}`, {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }],
-      generationConfig: { temperature: 0.8, responseMimeType: 'application/json' } }),
-  });
-  if (!r.ok) return json({ error: 'gemini ' + r.status, detail: await r.text() }, 502);
+  const body = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }],
+    generationConfig: { temperature: 0.8, responseMimeType: 'application/json' } });
+
+  // Try the preferred model, then fall back if the key's API version doesn't know it.
+  let r, lastErr;
+  for (const m of [MODEL, ...FALLBACKS]) {
+    r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${env.GEMINI_API_KEY}`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+    });
+    if (r.ok) break;
+    lastErr = { status: r.status, model: m, text: await r.text() };
+    if (r.status !== 404) break;   // only a missing model is worth retrying
+  }
+  if (!r.ok) {
+    let msg = '';
+    try { msg = JSON.parse(lastErr.text)?.error?.message || ''; } catch {}
+    const hint = lastErr.status === 400 ? 'The API key looks malformed — check for a stray space or newline.'
+      : lastErr.status === 403 ? 'The key was rejected. Enable the Generative Language API for its project, and make sure the key has no HTTP-referrer restriction (a Worker sends no referrer).'
+      : lastErr.status === 404 ? `No model matched (tried ${[MODEL, ...FALLBACKS].join(', ')}).`
+      : lastErr.status === 429 ? 'Free-tier rate limit reached. Wait a minute and try again.'
+      : '';
+    return json({ error: `Gemini returned ${lastErr.status}`, detail: [msg, hint].filter(Boolean).join(' — ') || lastErr.text.slice(0, 300) }, 502);
+  }
   const data = await r.json();
   const text = data.candidates?.[0]?.content?.parts?.map(p => p.text).join('') || '';
   try {
