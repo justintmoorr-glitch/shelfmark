@@ -20,14 +20,14 @@ For each, give a short, specific reason (one sentence, referencing what the read
 Respond with JSON only, no markdown fences:
 {"recommendations":[{"title":"","author":"","why":"","search":""}]}`;
 
-  const body = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }],
+  const payload = JSON.stringify({ contents: [{ role: 'user', parts: [{ text: prompt }] }],
     generationConfig: { temperature: 0.8, responseMimeType: 'application/json' } });
 
   // Try the preferred model, then fall back if the key's API version doesn't know it.
   let r, lastErr;
   for (const m of [MODEL, ...FALLBACKS]) {
     r = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${m}:generateContent?key=${env.GEMINI_API_KEY}`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' }, body,
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: payload,
     });
     if (r.ok) break;
     lastErr = { status: r.status, model: m, text: await r.text() };
