@@ -519,6 +519,7 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const fmtDate = iso => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'});
 const daysUntil = iso => Math.round((new Date(iso + 'T00:00:00') - new Date(todayISO() + 'T00:00:00')) / DAY);
 
+const setLoading = t => { const el = $('#r-loading'); if (el) { el.textContent = t; el.style.display = t ? '' : 'none'; } };
 let toastTimer;
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
@@ -530,13 +531,12 @@ const DB = {
   db: null,
   open() {
     return new Promise((res, rej) => {
-      const r = indexedDB.open('shelfmark', 1);
+      const r = indexedDB.open('shelfmark', 2);
       r.onupgradeneeded = e => {
         const d = e.target.result;
-        d.createObjectStore('books', {keyPath: 'id'});
-        d.createObjectStore('files', {keyPath: 'id'});
-        d.createObjectStore('loans', {keyPath: 'id'});
-        d.createObjectStore('settings', {keyPath: 'k'});
+        const need = (n, kp) => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, {keyPath: kp}); };
+        need('books', 'id'); need('files', 'id'); need('loans', 'id'); need('settings', 'k');
+        need('locs', 'id');   // cached epub.js location index, one small JSON per book
       };
       r.onsuccess = () => { DB.db = r.result; res(); };
       r.onerror = () => rej(r.error);
@@ -830,7 +830,7 @@ async function renderShelf() {
   g.querySelectorAll('[data-rm]').forEach(x => x.addEventListener('click', async () => {
     const b = S.books.find(b => b.id === x.dataset.rm);
     if (!confirm(`Remove “${b.title}” and its file from this device?`)) return;
-    await DB.del('books', b.id); await DB.del('files', b.id);
+    await DB.del('books', b.id); await DB.del('files', b.id); DB.del('locs', b.id).catch(() => {});
     S.books = S.books.filter(y => y.id !== b.id); renderShelf(); updateCounts(); updateStorageNote();
   }));
 }
@@ -866,20 +866,28 @@ const THEMES = {
 
 async function openReader(id) {
   const book = S.books.find(b => b.id === id); if (!book) return;
-  const f = await DB.get('files', id); if (!f) { toast('The file for this book is missing. Remove and re-add it.'); return; }
+  const t0 = performance.now();
+  $('#reader').classList.add('open'); setLoading('Reading file…');
+  await new Promise(r => requestAnimationFrame(r));   // let the overlay paint before the heavy work
+  const f = await DB.get('files', id); if (!f) { setLoading(''); $('#reader').classList.remove('open'); toast('The file for this book is missing. Remove and re-add it.'); return; }
+  console.debug('[shelfmark] file read', Math.round(performance.now() - t0) + 'ms', ((book.size || 0) / 1048576).toFixed(1) + 'MB');
   R.current = book; R.cur = null;
   $('#reader').classList.toggle('comic', isPaged(book));
   $('#comic-opts').style.display = isPaged(book) ? '' : 'none';
   $('#text-opts').style.display = isPaged(book) ? 'none' : '';
-  if (isPaged(book)) return openComic(book, f);
+  if (isPaged(book)) { setLoading(book.kind === 'pdf' ? 'Opening the PDF…' : 'Opening the comic…'); return openComic(book, f); }
   R.fontSize = Settings.get('fontSize', 100); R.lh = Settings.get('lh', '1.65');
   R.theme = Settings.get('rtheme', 'lamp'); R.flow = Settings.get('flow', 'paginated');
   $('#reader').dataset.rtheme = R.theme;
   $('#r-title').textContent = book.title; $('#r-chapter').textContent = '';
-  $('#r-loading').style.display = ''; $('#reader').classList.add('open');
   closePanels(); syncReaderControls(); $('#place-chip').classList.remove('show'); R.placeOffered = false;
 
+  setLoading('Unpacking the book…');
+  await new Promise(r => requestAnimationFrame(r));
   const bk = ePub(f.data); R.book = bk;
+  await bk.ready;
+  console.debug('[shelfmark] unpacked', Math.round(performance.now() - t0) + 'ms');
+  setLoading('Laying out the page…');
   const rendition = bk.renderTo('view', {
     width: '100%', height: '100%', flow: R.flow, spread: R.flow === 'paginated' ? 'auto' : 'none', minSpreadWidth: 900,
     allowScriptedContent: false,
@@ -892,10 +900,11 @@ async function openReader(id) {
   rendition.themes.override('font-family', '"Crimson Pro", Georgia, serif');
 
   await rendition.display(book.cfi || undefined);
-  $('#r-loading').style.display = 'none';
+  setLoading('');
+  console.debug('[shelfmark] first page', Math.round(performance.now() - t0) + 'ms');
 
   bk.loaded.navigation.then(nav => { R.toc = flattenToc(nav.toc); renderToc(); });
-  bk.locations.generate(1200).then(() => { if (R.cur) updateProgress(R.cur); });
+  ensureLocations(book, bk);
 
   rendition.on('relocated', loc => {
     R.cur = loc;
@@ -920,6 +929,29 @@ async function openReader(id) {
   rendition.on('click', () => closePanels());
 }
 
+/* The location index powers the % and the slider. It costs seconds on a long book,
+   so build it once in the background, cache the JSON, and reuse it on later opens. */
+async function ensureLocations(book, bk) {
+  const done = () => { R.locsReady = true; $('#r-range').disabled = false; if (R.cur) updateProgress(R.cur); };
+  R.locsReady = false; $('#r-range').disabled = true;
+  try {
+    const cached = await DB.get('locs', book.id);
+    if (cached?.json) { bk.locations.load(cached.json); done(); return; }
+  } catch {}
+  // Defer past the first paint so the reader is usable while this runs.
+  const start = () => {
+    if (R.book !== bk) return;
+    const t = performance.now();
+    bk.locations.generate(1600).then(async () => {
+      if (R.book !== bk) return;
+      try { await DB.put('locs', { id: book.id, json: bk.locations.save(), at: Date.now() }); } catch {}
+      console.debug('[shelfmark] index built', Math.round(performance.now() - t) + 'ms');
+      done();
+    }).catch(() => {});
+  };
+  'requestIdleCallback' in window ? requestIdleCallback(start, { timeout: 2500 }) : setTimeout(start, 600);
+}
+
 function flattenToc(items, depth = 0) {
   return items.flatMap(i => [{ label: i.label.trim(), href: i.href, depth }, ...(i.subitems?.length ? flattenToc(i.subitems, depth + 1) : [])]);
 }
@@ -932,7 +964,7 @@ function chapterFor(href) {
 function updateProgress(loc) {
   const bk = R.book;
   let pct = bk.locations.length() ? bk.locations.percentageFromCfi(loc.start.cfi) : null;
-  $('#r-pct').textContent = pct == null ? '…' : Math.round(pct * 100) + '%';
+  $('#r-pct').textContent = pct == null ? (R.locsReady ? '—' : 'indexing…') : Math.round(pct * 100) + '%';
   if (pct != null) $('#r-range').value = Math.round(pct * 1000);
   $('#r-chapter').textContent = chapterFor(loc.start.href);
   $('#r-left').textContent = pct == null ? '' : (loc.start.displayed ? `page ${loc.start.displayed.page} of ${loc.start.displayed.total} in chapter` : '');
@@ -995,7 +1027,7 @@ async function openComic(book, f) {
   $('#comic').className = 'fit-' + C.fit;
   syncReaderControls(); renderToc();
   await showPage(Math.min(book.page || 0, C.pages.length - 1));
-  $('#r-loading').style.display = 'none';
+  setLoading('');
 }
 async function pageURL(i) {
   if (C.urls.has(i)) return C.urls.get(i);
@@ -1365,7 +1397,7 @@ $('#import').addEventListener('change', async e => {
 });
 $('#wipe').addEventListener('click', async () => {
   if (!confirm('Delete all books, files, loans, and settings from this device?')) return;
-  for (const s of ['books', 'files', 'loans', 'settings']) await DB.clear(s);
+  for (const s of ['books', 'files', 'loans', 'settings', 'locs']) await DB.clear(s);
   S.books = []; S.loans = []; Settings.cache = {}; renderShelf(); renderLoans(); updateCounts(); updateStorageNote(); toast('Everything deleted');
 });
 
