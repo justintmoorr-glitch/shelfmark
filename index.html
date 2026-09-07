@@ -1,0 +1,1388 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#25281F">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>Shelfmark</title>
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2325281F'/%3E%3Crect x='18' y='12' width='28' height='40' rx='2' fill='%23D9A85A'/%3E%3Crect x='36' y='12' width='6' height='24' fill='%238FBF8F'/%3E%3C/svg%3E">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.93/epub.min.js"></script>
+<style>
+:root{
+  /* Night: the reading-lamp palette. Dark moss walls, parchment text, amber lamp light. Almost no blue. */
+  --bg:#25281F; --surface:#2E3227; --raised:#3A3F31; --line:#474D3D;
+  --text:#DDD5BE; --muted:#9B9A86; --ink:#D9A85A; --ink-deep:#B8883E;
+  --stamp:#D46E62; --ok:#8FBF8F; --shadow:0 10px 30px rgba(0,0,0,.35);
+  --radius:10px; --rail:220px;
+  --ui:"Atkinson Hyperlegible",system-ui,sans-serif; --serif:"Crimson Pro",Georgia,serif;
+}
+[data-theme="day"]{
+  /* Day: sage reading room. Green-tinted paper, walnut ink. */
+  --bg:#E3E7D8; --surface:#F0F2E9; --raised:#D6DBC8; --line:#C2C9B3;
+  --text:#2A3026; --muted:#61685A; --ink:#8A5E22; --ink-deep:#6E4A18;
+  --stamp:#B14A3F; --ok:#3B7D54; --shadow:0 10px 30px rgba(40,50,30,.12);
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{
+  background:var(--bg); color:var(--text);
+  font-family:var(--ui); font-size:16px; line-height:1.5;
+  -webkit-font-smoothing:antialiased; overscroll-behavior:none;
+}
+button,input,select,textarea{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none;padding:0}
+a{color:var(--ink)}
+:focus-visible{outline:2px solid var(--ink);outline-offset:2px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
+
+/* ---------- shell ---------- */
+#app{display:grid;grid-template-columns:var(--rail) 1fr;height:100%;height:100dvh}
+nav.rail{
+  background:var(--surface); border-right:1px solid var(--line);
+  display:flex; flex-direction:column; padding:22px 14px 14px;
+  padding-top:calc(22px + env(safe-area-inset-top));
+}
+.brand{padding:0 10px 22px;font-family:var(--serif);font-size:26px;font-weight:500;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+.brand .mark{width:22px;height:28px;border-radius:2px;background:var(--ink);position:relative;flex:none}
+.brand .mark::after{content:"";position:absolute;right:5px;top:0;width:5px;height:17px;background:var(--ok)}
+.rail button.tab{
+  display:flex;align-items:center;justify-content:space-between;width:100%;
+  padding:11px 12px;border-radius:8px;font-size:17px;color:var(--muted);text-align:left;
+}
+.rail button.tab.active{background:var(--raised);color:var(--text)}
+.rail button.tab .count{font-size:13px;color:var(--muted);background:var(--bg);padding:1px 8px;border-radius:12px}
+.rail button.tab .count.warn{background:var(--stamp);color:#fff}
+.rail .spacer{flex:1}
+.rail .foot{font-size:13px;color:var(--muted);padding:0 12px}
+main{overflow:auto;padding:28px 36px 60px;-webkit-overflow-scrolling:touch}
+main>section{display:none;max-width:1100px}
+main>section.active{display:block}
+h1{font-family:var(--serif);font-size:36px;font-weight:500;margin:0 0 6px;letter-spacing:-.005em;line-height:1.1}
+h2{font-family:var(--serif);font-size:24px;font-weight:500;margin:28px 0 12px}
+p.lead{color:var(--muted);margin:0 0 20px;max-width:60ch}
+
+@media (max-width:760px){
+  #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
+  nav.rail{order:2;flex-direction:row;border-right:0;border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
+  .brand,.rail .spacer,.rail .foot{display:none}
+  .rail button.tab{flex:1;justify-content:center;gap:8px;font-size:15px;padding:10px 6px}
+  main{padding:20px 18px 40px}
+}
+
+/* ---------- controls ---------- */
+.row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.field{display:flex;flex-direction:column;gap:5px;min-width:0}
+.field label{font-size:14px;color:var(--muted)}
+input[type=text],input[type=search],input[type=date],input[type=number],input[type=url],select,textarea{
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px 13px;min-height:46px;
+  width:100%;
+}
+input::placeholder{color:var(--muted)}
+.btn{
+  background:var(--raised);border:1px solid var(--line);padding:11px 16px;border-radius:8px;min-height:46px;
+  display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
+}
+.btn.primary{background:var(--ink);color:#1E1A10;border-color:transparent}
+[data-theme="day"] .btn.primary{color:#fff}
+.btn.quiet{background:none;border-color:transparent;color:var(--muted)}
+.btn.danger{color:var(--stamp)}
+.btn:disabled{opacity:.5;cursor:default}
+.search{display:grid;grid-template-columns:1fr auto;gap:10px;margin:16px 0}
+.note{color:var(--muted);font-size:14px}
+.empty{
+  border:1px dashed var(--line);border-radius:var(--radius);padding:36px 24px;color:var(--muted);
+  text-align:center;max-width:56ch;
+}
+.toast{
+  position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  background:var(--raised);border:1px solid var(--line);padding:12px 18px;border-radius:10px;box-shadow:var(--shadow);
+  z-index:50;opacity:0;pointer-events:none;transition:opacity .2s;
+}
+.toast.show{opacity:1}
+.segment{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:3px}
+.segment button{padding:7px 12px;border-radius:6px;color:var(--muted);min-height:36px}
+.segment button.on{background:var(--raised);color:var(--text)}
+
+/* ---------- books ---------- */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:22px 18px}
+.book{display:flex;flex-direction:column;gap:8px;text-align:left}
+.cover{
+  position:relative;aspect-ratio:2/3;border-radius:3px 6px 6px 3px;background:var(--raised);
+  overflow:hidden;box-shadow:var(--shadow);
+}
+.cover img{width:100%;height:100%;object-fit:cover;display:block}
+.cover .spine{position:absolute;left:0;top:0;bottom:0;width:6px;background:rgba(0,0,0,.25)}
+.cover .ribbon{
+  position:absolute;right:12px;top:-2px;width:14px;height:0;background:var(--stamp);
+  clip-path:polygon(0 0,100% 0,100% 100%,50% 85%,0 100%);transition:height .3s;
+}
+.cover .ribbon.done{background:var(--ok)}
+.cover .placeholder{position:absolute;inset:0;padding:14px 12px 12px 18px;display:flex;flex-direction:column;justify-content:flex-end;gap:4px}
+.cover .placeholder b{font-family:var(--serif);font-weight:500;font-size:16px;line-height:1.2}
+.cover .placeholder span{font-size:12px;color:var(--muted)}
+.book .t{font-family:var(--serif);font-weight:500;font-size:17px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.book .a{font-size:13px;color:var(--muted)}
+.book .pct{font-size:13px;color:var(--ink)}
+.book .actions{display:flex;gap:6px;margin-top:2px}
+.book .actions .btn{min-height:36px;padding:6px 10px;font-size:14px}
+
+/* discover list */
+.results{display:grid;gap:12px;margin-top:8px}
+.hit{
+  display:grid;grid-template-columns:64px 1fr auto;gap:16px;align-items:center;
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;
+}
+.hit .cover{aspect-ratio:2/3;box-shadow:none;width:64px}
+.hit .t{font-family:var(--serif);font-weight:500;font-size:20px;line-height:1.25}
+.hit .a{color:var(--muted);font-size:14px}
+.hit .why{font-size:14px;margin-top:4px;max-width:60ch}
+.hit .meta{font-size:13px;color:var(--muted);margin-top:4px}
+@media (max-width:560px){.hit{grid-template-columns:52px 1fr}.hit .side{grid-column:1/-1}}
+
+.rec-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:12px}
+.rec-box textarea{min-height:64px;resize:vertical}
+
+/* ---------- loans: the date-due slip ---------- */
+.loans{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
+.slip{
+  background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:18px 18px 14px;
+  position:relative;overflow:hidden;
+  background-image:repeating-linear-gradient(to bottom,transparent 0 31px,var(--line) 31px 32px);
+  background-position:0 58px;
+}
+.slip::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ink)}
+.slip.overdue::before{background:var(--stamp)}
+.slip.returned{opacity:.6}
+.slip .head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;background:var(--surface);padding-bottom:6px}
+.slip .title{font-family:var(--serif);font-weight:500;font-size:21px;line-height:1.2}
+.slip .src{font-size:13px;color:var(--muted)}
+.slip .dates{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 8px}
+.slip .d{background:var(--surface);padding:4px 0}
+.slip .d small{display:block;color:var(--muted);font-size:13px}
+.slip .d b{font-weight:500;font-size:17px}
+.stamp{
+  display:inline-block;border:2px solid var(--ink);color:var(--ink);border-radius:4px;padding:2px 10px;
+  font-weight:600;font-size:14px;letter-spacing:.02em;transform:rotate(-4deg);background:var(--surface);
+}
+.stamp.due-soon{border-color:var(--stamp);color:var(--stamp)}
+.stamp.overdue{border-color:var(--stamp);color:var(--stamp);background:color-mix(in srgb,var(--stamp) 12%,var(--surface))}
+.stamp.returned{border-color:var(--ok);color:var(--ok)}
+.slip .foot{display:flex;gap:6px;flex-wrap:wrap;background:var(--surface);padding-top:6px}
+.slip .foot .btn{min-height:36px;padding:6px 10px;font-size:14px}
+
+/* ---------- modal ---------- */
+dialog{
+  background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;
+  width:min(560px,calc(100vw - 32px));box-shadow:var(--shadow);
+}
+dialog::backdrop{background:rgba(0,0,0,.5)}
+dialog form{padding:22px}
+dialog h3{margin:0 0 16px;font-family:var(--serif);font-weight:500;font-size:24px}
+dialog .fields{display:grid;gap:14px;grid-template-columns:1fr 1fr}
+dialog .fields .wide{grid-column:1/-1}
+dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
+.ol-hits{display:grid;gap:6px;margin-top:6px;max-height:180px;overflow:auto}
+.ol-hits button{display:flex;gap:10px;align-items:center;text-align:left;padding:6px 8px;border-radius:6px;width:100%}
+.ol-hits button:hover{background:var(--raised)}
+.ol-hits img{width:28px;height:42px;object-fit:cover;border-radius:2px;background:var(--raised)}
+.ol-hits span{font-size:14px}
+
+/* ---------- reader ---------- */
+#reader{
+  position:fixed;inset:0;background:var(--rbg,var(--bg));color:var(--rtext,var(--text));z-index:40;
+  display:none;flex-direction:column;
+}
+#reader.open{display:flex}
+#reader .bar{
+  display:flex;align-items:center;gap:8px;padding:8px 12px;min-height:54px;
+  border-bottom:1px solid color-mix(in srgb,currentColor 15%,transparent);
+  padding-top:calc(8px + env(safe-area-inset-top));
+}
+#reader .bar .title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;opacity:.85}
+#reader .bar .chapter{font-size:13px;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+#reader .ibtn{width:44px;height:44px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;opacity:.85}
+#reader .ibtn:hover{background:color-mix(in srgb,currentColor 10%,transparent)}
+#reader .ibtn.on{color:var(--stamp)}
+#stage{flex:1;position:relative;min-height:0}
+#stage{perspective:1600px}
+#view{position:absolute;inset:0 0 0 0;margin:0 auto;max-width:1200px;transform-style:preserve-3d;backface-visibility:hidden}
+#view.turn-out{transition:transform .22s cubic-bezier(.4,0,.8,.4),filter .22s}
+#view.turn-in{transition:transform .2s cubic-bezier(.2,.6,.3,1),filter .2s}
+.tap{position:absolute;top:0;bottom:0;width:18%;z-index:2}
+/* comic / manga reader */
+#comic{position:absolute;inset:0;display:none;align-items:center;justify-content:center;overflow:auto;transform-style:preserve-3d}
+#reader.comic #view{display:none}
+#reader.comic #comic{display:flex}
+#comic .spread{display:flex;align-items:center;justify-content:center;gap:0;height:100%;width:100%;position:relative}
+#comic .spread img{display:block;user-select:none;-webkit-user-drag:none;background:#000}
+#comic.fit-h .spread img{max-height:100%;max-width:100%;object-fit:contain}
+#comic.fit-h .spread.double img{max-width:50%}
+#comic.fit-w{align-items:flex-start}
+#comic.fit-w .spread{height:auto;flex-direction:column}
+#comic.fit-w .spread img{width:100%;height:auto}
+#comic .leaf{
+  position:absolute;top:0;bottom:0;display:flex;align-items:center;z-index:6;pointer-events:none;
+  transform-style:preserve-3d;backface-visibility:hidden;will-change:transform;
+}
+#comic .leaf img{max-height:100%;max-width:100%;object-fit:contain;box-shadow:0 0 40px rgba(0,0,0,.5)}
+#comic .leaf::after{content:"";position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0),rgba(0,0,0,.45));opacity:0;transition:opacity .35s}
+#comic .leaf.flip::after{opacity:1}
+#comic .leaf.hinge-l{left:0;justify-content:flex-start;transform-origin:left center}
+#comic .leaf.hinge-r{right:0;justify-content:flex-end;transform-origin:right center}
+#comic .leaf.flip{transition:transform .42s cubic-bezier(.45,.05,.55,.95)}
+#comic .leaf.hinge-l.flip{transform:rotateY(-180deg)}
+#comic .leaf.hinge-r.flip{transform:rotateY(180deg)}
+#comic .leaf.hinge-r::after{background:linear-gradient(to left,rgba(0,0,0,0),rgba(0,0,0,.45))}
+.upload-row{border:1px dashed var(--line);border-radius:var(--radius);padding:14px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0 6px}
+.upload-row.drag{border-color:var(--ink);background:var(--surface)}
+.upload-row .note{flex:1;min-width:200px}
+.book .kind{position:absolute;left:10px;bottom:8px;font-size:11px;padding:1px 7px;border-radius:10px;background:rgba(0,0,0,.55);color:#fff}
+.tap.l{left:0}.tap.r{right:0}
+#reader .foot{
+  display:flex;align-items:center;gap:14px;padding:8px 16px;font-size:13px;opacity:.85;
+  border-top:1px solid color-mix(in srgb,currentColor 15%,transparent);
+  padding-bottom:calc(8px + env(safe-area-inset-bottom));
+}
+#reader .foot input[type=range]{flex:1;accent-color:var(--ink)}
+.panel{
+  position:absolute;top:0;right:0;bottom:0;width:min(360px,90vw);z-index:5;
+  background:var(--rbg,var(--surface));color:var(--rtext,var(--text));border-left:1px solid color-mix(in srgb,currentColor 15%,transparent);
+  padding:18px;overflow:auto;display:none;box-shadow:var(--shadow);
+}
+.panel.open{display:block}
+.panel h4{margin:0 0 12px;font-family:var(--serif);font-weight:500;font-size:20px}
+.panel .item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 6px;border-radius:6px;width:100%;text-align:left}
+.panel .item:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
+.panel .item small{opacity:.6}
+.panel .item.sub{padding-left:22px;font-size:14px}
+.panel .opt{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid color-mix(in srgb,currentColor 12%,transparent)}
+.panel .opt .segment{background:transparent;border-color:color-mix(in srgb,currentColor 25%,transparent)}
+.panel .opt .segment button{color:inherit;opacity:.6}
+.panel .opt .segment button.on{opacity:1;background:color-mix(in srgb,currentColor 12%,transparent)}
+#reader[data-rtheme="lamp"]{--rbg:#221F19;--rtext:#D6CBB0}
+#reader[data-rtheme="sage"]{--rbg:#E2E7D7;--rtext:#2A3327}
+#reader[data-rtheme="amber"]{--rbg:#F2E3C4;--rtext:#46361F}
+/* saved place */
+.place-chip{
+  position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:7;display:none;
+  background:var(--rbg,var(--surface));color:var(--rtext,var(--text));border:1px solid color-mix(in srgb,currentColor 25%,transparent);
+  border-radius:20px;padding:8px 8px 8px 14px;box-shadow:var(--shadow);font-size:14px;align-items:center;gap:8px;
+}
+.place-chip.show{display:flex}
+.place-chip button{background:var(--ink);color:#1E1A10;border-radius:14px;padding:5px 12px;min-height:30px}
+.place-chip .x{background:none;color:inherit;opacity:.6;padding:4px 8px}
+.book .place{font-size:13px;color:var(--muted)}
+.book .place b{color:var(--ink);font-weight:400}
+.cover .placebadge{position:absolute;left:0;bottom:0;right:0;font-size:11px;padding:4px 8px 4px 14px;background:color-mix(in srgb,var(--ink) 85%,#000);color:#1E1A10}
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.6;pointer-events:none}
+</style>
+</head>
+<body>
+<div id="app">
+  <nav class="rail">
+    <div class="brand"><span class="mark"></span>Shelfmark</div>
+    <button class="tab active" data-tab="discover">Discover</button>
+    <button class="tab" data-tab="shelf">Shelf <span class="count" id="c-shelf">0</span></button>
+    <button class="tab" data-tab="loans">Loans <span class="count" id="c-loans">0</span></button>
+    <button class="tab" data-tab="settings">Settings</button>
+    <div class="spacer"></div>
+    <div class="foot" id="storage-note"></div>
+  </nav>
+
+  <main>
+    <!-- ===== DISCOVER ===== -->
+    <section id="tab-discover" class="active">
+      <h1>Discover</h1>
+      <p class="lead">Upload EPUBs and CBZ comics from this device, search Project Gutenberg, or paste a link to any DRM-free EPUB. Everything is stored on this device and opens offline.</p>
+
+      <div class="rec-box">
+        <div class="row" style="justify-content:space-between">
+          <b>What should I read next?</b>
+          <button class="btn" id="rec-go">Ask for suggestions</button>
+        </div>
+        <textarea id="rec-mood" placeholder="Optional: a mood or constraint, e.g. short, funny, something I can finish on a night shift"></textarea>
+        <div class="note" id="rec-note">Suggestions are based on your shelf and reading progress. Only free public-domain books are suggested.</div>
+        <div class="results" id="rec-results"></div>
+      </div>
+
+      <div class="upload-row" id="drop">
+        <label class="btn primary">Upload from this device <input type="file" id="upload" accept=".epub,.cbz,.zip,.pdf,application/epub+zip,application/zip,application/x-cbz,application/pdf" multiple hidden></label>
+        <span class="note">EPUB books, PDFs, and CBZ comics or manga. Pick several at once. Files are copied into the app, so the originals can be deleted afterwards.</span>
+      </div>
+
+      <div class="search">
+        <input type="search" id="q" placeholder="Title or author on Project Gutenberg">
+        <button class="btn primary" id="q-go">Search</button>
+      </div>
+      <div class="row" style="margin-bottom:6px">
+        <input type="url" id="url-in" placeholder="…or paste an EPUB link (Standard Ebooks, Gutenberg)" style="flex:1;min-width:240px">
+        <button class="btn" id="url-go">Add from link</button>
+        <a class="note" href="https://standardebooks.org/ebooks" target="_blank" rel="noopener">Browse Standard Ebooks</a>
+      </div>
+      <div class="results" id="results"></div>
+    </section>
+
+    <!-- ===== SHELF ===== -->
+    <section id="tab-shelf">
+      <div class="row" style="justify-content:space-between;align-items:flex-end">
+        <div><h1>Shelf</h1><p class="lead" style="margin:0">Your downloaded books. Tap a cover to read.</p></div>
+        <div class="segment" id="shelf-filter">
+          <button class="on" data-f="all">All</button>
+          <button data-f="reading">Reading</button>
+          <button data-f="finished">Finished</button>
+        </div>
+      </div>
+      <div class="grid" id="shelf" style="margin-top:22px"></div>
+      <div class="empty" id="shelf-empty" style="margin-top:22px">Nothing here yet. Find something in Discover and it will land on this shelf.</div>
+    </section>
+
+    <!-- ===== LOANS ===== -->
+    <section id="tab-loans">
+      <div class="row" style="justify-content:space-between;align-items:flex-end">
+        <div><h1>Loans</h1><p class="lead" style="margin:0">Physical library books and Libby checkouts, with due dates.</p></div>
+        <div class="row">
+          <button class="btn" id="notif-btn">Remind me</button>
+          <button class="btn primary" id="loan-add">Add a loan</button>
+        </div>
+      </div>
+      <div class="row" style="margin:14px 0 18px">
+        <div class="segment" id="loan-filter">
+          <button class="on" data-f="active">Out now</button>
+          <button data-f="returned">Returned</button>
+        </div>
+      </div>
+      <div class="loans" id="loans"></div>
+      <div class="empty" id="loans-empty">No loans tracked. Add one and it becomes a date-due slip here, with a reminder three days before it's due.</div>
+    </section>
+
+    <!-- ===== SETTINGS ===== -->
+    <section id="tab-settings">
+      <h1>Settings</h1>
+      <h2>Appearance</h2>
+      <div class="row">
+        <span>App theme</span>
+        <div class="segment" id="app-theme">
+          <button data-t="night">Lamp (dark)</button>
+          <button data-t="day">Reading room (light)</button>
+        </div>
+      </div>
+      <div class="row" style="margin-top:12px">
+        <span>Page turn animation</span>
+        <div class="segment" id="anim-set">
+          <button data-a="1">On</button>
+          <button data-a="0">Off</button>
+        </div>
+      </div>
+      <h2>Your data</h2>
+      <p class="note">Everything lives in this browser. Export saves your shelf metadata, reading positions, bookmarks, and loans as JSON. Book files are not included; downloaded books re-fetch on import, and uploaded files need uploading again.</p>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="export">Export JSON</button>
+        <label class="btn">Import JSON <input type="file" id="import" accept="application/json" hidden></label>
+        <button class="btn danger quiet" id="wipe">Delete everything</button>
+      </div>
+      <h2>About</h2>
+      <p class="note">Shelfmark reads DRM-free EPUBs with epub.js, PDFs with pdf.js, and CBZ comics with JSZip. Search comes from Gutendex. Covers and metadata for loans come from Open Library. Suggestions run through your own recommendation endpoint at <code>/api/recommend</code>.</p>
+    </section>
+  </main>
+</div>
+
+<!-- ===== READER ===== -->
+<div id="reader" data-rtheme="lamp">
+  <div class="bar">
+    <button class="ibtn" id="r-back" aria-label="Back to shelf">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 5l-7 7 7 7"/></svg>
+    </button>
+    <div class="title"><span id="r-title"></span> <span class="chapter" id="r-chapter"></span></div>
+    <button class="ibtn" id="r-place" aria-label="Save my place" title="Save my place">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 4h11l5 5v11H4z"/><path d="M8 4v6h7V4M8 20v-6h8v6"/></svg>
+    </button>
+    <button class="ibtn" id="r-mark" aria-label="Bookmark this page">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M6 3h12v18l-6-4-6 4z"/></svg>
+    </button>
+    <button class="ibtn" id="r-toc" aria-label="Contents and bookmarks">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 6h16M4 12h16M4 18h10"/></svg>
+    </button>
+    <button class="ibtn" id="r-aa" aria-label="Text settings">
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19l6-14 6 14M6.5 14h7M17 10l3 9"/></svg>
+    </button>
+  </div>
+  <div id="stage">
+    <div class="tap l" id="tap-l" aria-label="Previous page"></div>
+    <div id="view"></div>
+    <div id="comic" class="fit-h"><div class="spread" id="spread"></div></div>
+    <div class="tap r" id="tap-r" aria-label="Next page"></div>
+    <div class="loading" id="r-loading">Opening…</div>
+    <div class="place-chip" id="place-chip"><span id="place-text"></span><button id="place-go">Go there</button><button class="x" id="place-x" aria-label="Dismiss">✕</button></div>
+
+    <div class="panel" id="p-toc">
+      <h4>Bookmarks</h4>
+      <div id="bm-list"></div>
+      <h4 style="margin-top:20px">Contents</h4>
+      <div id="toc-list"></div>
+    </div>
+
+    <div class="panel" id="p-aa">
+      <div id="comic-opts" style="display:none">
+        <h4>Pages</h4>
+        <div class="opt"><span>Direction</span>
+          <div class="segment" id="c-dir"><button data-d="ltr">Left to right</button><button data-d="rtl">Right to left</button></div>
+        </div>
+        <div class="opt"><span>Fit</span>
+          <div class="segment" id="c-fit"><button data-f="h">Whole page</button><button data-f="w">Width</button></div>
+        </div>
+        <div class="opt"><span>Two-page spread</span>
+          <div class="segment" id="c-spread"><button data-s="auto">When landscape</button><button data-s="1">Never</button></div>
+        </div>
+      </div>
+      <div id="text-opts">
+      <h4>Text</h4>
+      <div class="opt"><span>Theme</span>
+        <div class="segment" id="r-theme">
+          <button data-t="lamp">Lamp</button><button data-t="sage">Sage</button><button data-t="amber">Amber</button>
+        </div>
+      </div>
+      <div class="opt"><span>Size</span>
+        <div class="segment"><button id="fs-minus">A−</button><button id="fs-plus">A+</button></div>
+      </div>
+      <div class="opt"><span>Line height</span>
+        <div class="segment" id="r-lh">
+          <button data-l="1.4">Tight</button><button data-l="1.65">Normal</button><button data-l="1.9">Loose</button>
+        </div>
+      </div>
+      <div class="opt"><span>Layout</span>
+        <div class="segment" id="r-flow">
+          <button data-f="paginated">Pages</button><button data-f="scrolled">Scroll</button>
+        </div>
+      </div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">
+    <span id="r-pct">0%</span>
+    <input type="range" id="r-range" min="0" max="1000" value="0" aria-label="Position in book">
+    <span id="r-left"></span>
+  </div>
+</div>
+
+<!-- ===== LOAN DIALOG ===== -->
+<dialog id="loan-dlg">
+  <form method="dialog" id="loan-form">
+    <h3 id="loan-dlg-title">Add a loan</h3>
+    <div class="fields">
+      <div class="field wide"><label for="l-title">Title</label>
+        <input type="text" id="l-title" required autocomplete="off">
+        <div class="ol-hits" id="ol-hits"></div>
+      </div>
+      <div class="field"><label for="l-author">Author</label><input type="text" id="l-author"></div>
+      <div class="field"><label for="l-source">Source</label>
+        <select id="l-source">
+          <option value="Library">Library (physical)</option>
+          <option value="Libby">Libby</option>
+          <option value="Hoopla">Hoopla</option>
+          <option value="Other">Other</option>
+        </select>
+      </div>
+      <div class="field"><label for="l-out">Checked out</label><input type="date" id="l-out" required></div>
+      <div class="field"><label for="l-due">Due</label><input type="date" id="l-due" required></div>
+      <div class="field wide"><label for="l-notes">Notes</label><input type="text" id="l-notes" placeholder="Branch, renewals left, who recommended it…"></div>
+    </div>
+    <input type="hidden" id="l-id"><input type="hidden" id="l-cover">
+    <div class="end">
+      <button type="button" class="btn quiet" id="loan-cancel">Cancel</button>
+      <button type="submit" class="btn primary" id="loan-save">Save loan</button>
+    </div>
+  </form>
+</dialog>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =====================================================================
+   Shelfmark — single-file PWA
+   Storage: IndexedDB (books, files, loans, settings). No server state.
+   ===================================================================== */
+const $ = s => document.querySelector(s);
+const $$ = s => [...document.querySelectorAll(s)];
+const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const DAY = 86400000;
+const isPaged = b => !!b && (b.kind === 'cbz' || b.kind === 'pdf');
+const todayISO = () => new Date().toISOString().slice(0, 10);
+const fmtDate = iso => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'});
+const daysUntil = iso => Math.round((new Date(iso + 'T00:00:00') - new Date(todayISO() + 'T00:00:00')) / DAY);
+
+let toastTimer;
+function toast(msg) {
+  const t = $('#toast'); t.textContent = msg; t.classList.add('show');
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+}
+
+/* ---------- IndexedDB ---------- */
+const DB = {
+  db: null,
+  open() {
+    return new Promise((res, rej) => {
+      const r = indexedDB.open('shelfmark', 1);
+      r.onupgradeneeded = e => {
+        const d = e.target.result;
+        d.createObjectStore('books', {keyPath: 'id'});
+        d.createObjectStore('files', {keyPath: 'id'});
+        d.createObjectStore('loans', {keyPath: 'id'});
+        d.createObjectStore('settings', {keyPath: 'k'});
+      };
+      r.onsuccess = () => { DB.db = r.result; res(); };
+      r.onerror = () => rej(r.error);
+    });
+  },
+  tx(store, mode, fn) {
+    return new Promise((res, rej) => {
+      const t = DB.db.transaction(store, mode);
+      const req = fn(t.objectStore(store));
+      req.onsuccess = () => res(req.result);
+      req.onerror = () => rej(req.error);
+    });
+  },
+  all: s => DB.tx(s, 'readonly', o => o.getAll()),
+  get: (s, k) => DB.tx(s, 'readonly', o => o.get(k)),
+  put: (s, v) => DB.tx(s, 'readwrite', o => o.put(v)),
+  del: (s, k) => DB.tx(s, 'readwrite', o => o.delete(k)),
+  clear: s => DB.tx(s, 'readwrite', o => o.clear()),
+};
+const Settings = {
+  cache: {},
+  async load() { (await DB.all('settings')).forEach(r => Settings.cache[r.k] = r.v); },
+  get: (k, d) => Settings.cache[k] ?? d,
+  async set(k, v) { Settings.cache[k] = v; await DB.put('settings', {k, v}); },
+};
+
+/* ---------- state ---------- */
+const S = { books: [], loans: [], shelfFilter: 'all', loanFilter: 'active' };
+
+/* ---------- tabs ---------- */
+function showTab(name) {
+  $$('.rail .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  $$('main > section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  $('main').scrollTop = 0;
+}
+$$('.rail .tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+/* ---------- theme ---------- */
+function applyAppTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $('meta[name=theme-color]').content = t === 'day' ? '#E3E7D8' : '#25281F';
+  $$('#app-theme button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+}
+$$('#app-theme button').forEach(b => b.addEventListener('click', () => { applyAppTheme(b.dataset.t); Settings.set('theme', b.dataset.t); }));
+function syncAnim() { $$('#anim-set button').forEach(b => b.classList.toggle('on', b.dataset.a == Settings.get('anim', 1))); }
+$$('#anim-set button').forEach(b => b.addEventListener('click', () => { Settings.set('anim', +b.dataset.a); syncAnim(); }));
+
+/* =====================================================================
+   DISCOVER
+   ===================================================================== */
+const GUTENDEX = 'https://gutendex.com/books';
+const PROXY = '/api/epub?url=';
+
+function gutHit(b) {
+  const epub = b.formats['application/epub+zip'] || b.formats['application/epub'] ||
+    Object.entries(b.formats).find(([k]) => k.startsWith('application/epub'))?.[1];
+  return {
+    key: 'gut-' + b.id, title: b.title, author: (b.authors || []).map(a => a.name).join(', ') || 'Unknown',
+    cover: b.formats['image/jpeg'] || null, url: epub, source: 'Gutenberg',
+    meta: `${(b.download_count || 0).toLocaleString()} downloads` + (b.languages?.length ? ' · ' + b.languages.join(', ') : ''),
+    subjects: (b.subjects || []).slice(0, 4),
+  };
+}
+
+function renderHits(container, hits, opts = {}) {
+  if (!hits.length) { container.innerHTML = `<div class="empty">${esc(opts.empty || 'No matches. Try a shorter title or just the author\'s surname.')}</div>`; return; }
+  container.innerHTML = hits.map(h => {
+    const owned = S.books.some(b => b.key === h.key);
+    return `<div class="hit" data-key="${esc(h.key)}">
+      <div class="cover">${h.cover ? `<img src="${esc(h.cover)}" alt="" loading="lazy">` : `<span class="spine"></span>`}</div>
+      <div>
+        <div class="t">${esc(h.title)}</div>
+        <div class="a">${esc(h.author)}</div>
+        ${h.why ? `<div class="why">${esc(h.why)}</div>` : ''}
+        <div class="meta">${esc(h.meta || '')}</div>
+      </div>
+      <div class="side">${h.url
+        ? `<button class="btn ${owned ? '' : 'primary'}" data-add="${esc(h.key)}" ${owned ? 'disabled' : ''}>${owned ? 'On shelf' : 'Add to shelf'}</button>`
+        : `<span class="note">No EPUB available</span>`}</div>
+    </div>`;
+  }).join('');
+  container.querySelectorAll('[data-add]').forEach(btn => btn.addEventListener('click', () => {
+    const h = hits.find(x => x.key === btn.dataset.add); addBook(h, btn);
+  }));
+}
+
+async function searchGutenberg(q) {
+  const box = $('#results');
+  box.innerHTML = '<div class="note">Searching…</div>';
+  try {
+    const r = await fetch(`${GUTENDEX}?search=${encodeURIComponent(q)}&mime_type=application%2Fepub`);
+    const j = await r.json();
+    renderHits(box, j.results.map(gutHit));
+  } catch (e) { box.innerHTML = '<div class="empty">Search failed. Check your connection and try again.</div>'; }
+}
+$('#q-go').addEventListener('click', () => { const q = $('#q').value.trim(); if (q) searchGutenberg(q); });
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') $('#q-go').click(); });
+
+$('#url-go').addEventListener('click', async () => {
+  const url = $('#url-in').value.trim(); if (!url) return;
+  const name = decodeURIComponent(url.split('/').pop() || 'book').replace(/\.epub.*$/i, '').replace(/[-_]+/g, ' ');
+  await addBook({ key: 'url-' + url, title: name, author: '', url, source: 'Link' }, $('#url-go'));
+  $('#url-in').value = '';
+});
+
+/* ---------- add a book: download or upload, sniff type, read metadata, store ---------- */
+const IMG_RE = /\.(jpe?g|png|webp|gif|avif)$/i;
+const natural = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
+
+if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+async function renderPdfPage(doc, i, scale) {
+  const page = await doc.getPage(i + 1);
+  const vp0 = page.getViewport({ scale: 1 });
+  const sc = scale || Math.min(3, Math.max(1, ($('#stage')?.clientHeight || 1200) * 1.6 * devicePixelRatio / vp0.height));
+  const vp = page.getViewport({ scale: sc });
+  const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+  return await new Promise(r => c.toBlob(r, 'image/jpeg', .9));
+}
+async function sniff(buf) {
+  const head = new TextDecoder('latin1').decode(new Uint8Array(buf.slice(0, 5)));
+  if (head.startsWith('%PDF')) {
+    if (!window.pdfjsLib) throw new Error('The PDF library did not load. Check your connection and try again.');
+    const doc = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
+    return { kind: 'pdf', doc, pages: doc.numPages };
+  }
+  // Both EPUB and CBZ are zip files; look inside to tell them apart.
+  const zip = await JSZip.loadAsync(buf);
+  if (zip.file('META-INF/container.xml')) return { kind: 'epub' };
+  const pages = Object.keys(zip.files).filter(n => !zip.files[n].dir && IMG_RE.test(n) && !/__MACOSX|\/\./.test(n)).sort(natural);
+  if (pages.length) return { kind: 'cbz', zip, pages };
+  throw new Error('That file is not an EPUB, PDF, or comic archive with images');
+}
+
+async function shrinkCover(blob, maxW = 480) {
+  try {
+    const bmp = await createImageBitmap(blob);
+    const sc = Math.min(1, maxW / bmp.width);
+    if (sc === 1) return blob;
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
+    return await new Promise(r => c.toBlob(r, 'image/jpeg', .82));
+  } catch { return blob; }
+}
+
+async function storeBuffer(h, buf) {
+  if (buf.byteLength < 1000) throw new Error('That is not a book file');
+  const info = await sniff(buf);
+  const id = uid();
+  let title = h.title, author = h.author || '', coverBlob = null, extra = {};
+  if (info.kind === 'epub') {
+    try {
+      const bk = ePub(buf); await bk.ready;
+      const md = await bk.loaded.metadata;
+      title = md.title || title; author = md.creator || author;
+      const cu = await bk.coverUrl(); if (cu) coverBlob = await (await fetch(cu)).blob();
+      bk.destroy();
+    } catch (e) { console.warn('metadata read failed', e); }
+    if (!coverBlob && h.cover) { try { coverBlob = await (await fetch(h.cover)).blob(); } catch {} }
+  } else if (info.kind === 'pdf') {
+    try { const md = await info.doc.getMetadata(); title = md.info?.Title?.trim() || title; author = md.info?.Author?.trim() || author; } catch {}
+    coverBlob = await shrinkCover(await renderPdfPage(info.doc, 0, 1.2));
+    info.doc.destroy();
+    extra = { pages: info.pages, page: 0, rtl: false };
+  } else {
+    const first = await info.zip.file(info.pages[0]).async('blob');
+    coverBlob = await shrinkCover(first);
+    extra = { pages: info.pages.length, page: 0, rtl: /manga|\(jp\)|japanese/i.test(h.title) };
+  }
+  await DB.put('files', { id, data: buf, cover: coverBlob });
+  const book = { id, key: h.key, kind: info.kind, title, author, source: h.source, url: h.url || null, size: buf.byteLength,
+    addedAt: Date.now(), lastReadAt: null, cfi: null, pct: 0, bookmarks: [], finished: false, ...extra };
+  await DB.put('books', book); S.books.push(book);
+  renderShelf(); updateCounts(); updateStorageNote();
+  return book;
+}
+
+async function addBook(h, btn) {
+  if (S.books.some(b => b.key === h.key)) { toast('Already on your shelf'); return; }
+  const label = btn?.textContent; if (btn) { btn.disabled = true; btn.textContent = 'Downloading…'; }
+  try {
+    let resp;
+    try { resp = await fetch(h.url); if (!resp.ok) throw 0; }
+    catch { resp = await fetch(PROXY + encodeURIComponent(h.url)); }
+    if (!resp.ok) throw new Error('Download failed (' + resp.status + ')');
+    const book = await storeBuffer(h, await resp.arrayBuffer());
+    if (btn) { btn.textContent = 'On shelf'; }
+    toast(`Added “${book.title}”`);
+  } catch (e) {
+    console.error(e); toast(e.message || 'Could not add that book');
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+
+async function addFiles(files) {
+  let ok = 0;
+  for (const f of files) {
+    const title = f.name.replace(/\.(epub|cbz|zip|pdf)$/i, '').replace(/[-_]+/g, ' ').trim();
+    const key = 'file-' + f.name + '-' + f.size;
+    if (S.books.some(b => b.key === key)) { toast(`“${title}” is already on your shelf`); continue; }
+    toast(`Adding “${title}”…`);
+    try { await storeBuffer({ key, title, author: '', source: 'Upload' }, await f.arrayBuffer()); ok++; }
+    catch (e) { toast(`${f.name}: ${e.message}`); }
+  }
+  if (ok) { toast(`Added ${ok} ${ok === 1 ? 'book' : 'books'} to your shelf`); showTab('shelf'); }
+}
+$('#upload').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
+const drop = $('#drop');
+['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+drop.addEventListener('drop', e => addFiles([...e.dataTransfer.files]));
+
+/* ---------- recommendations via /api/recommend ---------- */
+$('#rec-go').addEventListener('click', async () => {
+  const box = $('#rec-results'), btn = $('#rec-go');
+  btn.disabled = true; btn.textContent = 'Thinking…'; box.innerHTML = '';
+  try {
+    const history = S.books.map(b => ({ title: b.title, author: b.author, progress: Math.round(b.pct * 100), finished: b.finished }));
+    const loans = S.loans.map(l => ({ title: l.title, author: l.author }));
+    const r = await fetch('/api/recommend', { method: 'POST', headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({ history, loans, mood: $('#rec-mood').value.trim() }) });
+    if (!r.ok) throw new Error('Recommendation service returned ' + r.status);
+    const { recommendations } = await r.json();
+    if (!recommendations?.length) throw new Error('No suggestions came back');
+    box.innerHTML = '<div class="note">Matching suggestions to downloadable copies…</div>';
+    // Resolve each to a real Gutenberg record so "Add to shelf" works
+    const hits = (await Promise.all(recommendations.map(async rec => {
+      try {
+        const j = await (await fetch(`${GUTENDEX}?search=${encodeURIComponent(rec.search || rec.title + ' ' + rec.author)}&mime_type=application%2Fepub`)).json();
+        const g = j.results?.[0];
+        if (g) return { ...gutHit(g), why: rec.why };
+      } catch {}
+      return { key: 'rec-' + rec.title, title: rec.title, author: rec.author, why: rec.why, meta: 'Not found on Gutenberg — try Standard Ebooks', url: null };
+    })));
+    renderHits(box, hits);
+  } catch (e) {
+    box.innerHTML = `<div class="empty">${esc(e.message)}. The endpoint needs GEMINI_API_KEY set in Cloudflare Pages.</div>`;
+  } finally { btn.disabled = false; btn.textContent = 'Ask for suggestions'; }
+});
+
+/* =====================================================================
+   SHELF
+   ===================================================================== */
+const coverURLs = new Map();
+async function coverSrc(book) {
+  if (coverURLs.has(book.id)) return coverURLs.get(book.id);
+  const f = await DB.get('files', book.id);
+  const u = f?.cover ? URL.createObjectURL(f.cover) : null;
+  coverURLs.set(book.id, u); return u;
+}
+
+async function renderShelf() {
+  const g = $('#shelf');
+  const list = S.books
+    .filter(b => S.shelfFilter === 'all' || (S.shelfFilter === 'finished' ? b.finished : (!b.finished && b.pct > 0)))
+    .sort((a, b) => (b.lastReadAt || b.addedAt) - (a.lastReadAt || a.addedAt));
+  $('#shelf-empty').style.display = list.length ? 'none' : '';
+  g.innerHTML = list.map(b => `
+    <div class="book" data-id="${b.id}">
+      <button class="cover" aria-label="Read ${esc(b.title)}">
+        <span class="spine"></span>
+        <span class="placeholder"><b>${esc(b.title)}</b><span>${esc(b.author)}</span></span>
+        <span class="ribbon ${b.finished ? 'done' : ''}" style="height:${b.finished ? 100 : Math.max(0, Math.round(b.pct * 100))}%"></span>
+        ${isPaged(b) ? `<span class="kind">${b.kind === 'pdf' ? 'PDF · ' : ''}${b.pages} pages</span>` : ''}
+        ${b.place ? `<span class="placebadge">Place saved · ${Math.round((b.place.pct || 0) * 100)}%</span>` : ''}
+      </button>
+      <div class="t">${esc(b.title)}</div>
+      <div class="a">${esc(b.author)}</div>
+      <div class="pct">${b.finished ? 'Finished' : b.pct > 0 ? Math.round(b.pct * 100) + '% read' : 'Not started'}</div>
+      ${b.place ? `<div class="place">Saved place <b>${esc(placeLabel(b.place))}</b></div>` : ''}
+      <div class="actions">
+        ${b.place ? `<button class="btn quiet" data-resume="${b.id}">Resume there</button>` : ''}
+        <button class="btn quiet" data-done="${b.id}">${b.finished ? 'Reopen' : 'Mark finished'}</button>
+        <button class="btn quiet danger" data-rm="${b.id}">Remove</button>
+      </div>
+    </div>`).join('');
+  for (const b of list) {
+    const src = await coverSrc(b);
+    if (src) { const c = g.querySelector(`[data-id="${b.id}"] .cover`); const img = new Image(); img.src = src; img.alt = ''; c.insertBefore(img, c.querySelector('.placeholder')); c.querySelector('.placeholder').remove(); }
+  }
+  g.querySelectorAll('.cover').forEach(c => c.addEventListener('click', () => openReader(c.closest('.book').dataset.id)));
+  g.querySelectorAll('[data-resume]').forEach(x => x.addEventListener('click', async () => {
+    const b = S.books.find(b => b.id === x.dataset.resume);
+    if (isPaged(b)) b.page = b.place.page; else b.cfi = b.place.cfi;
+    await DB.put('books', b); openReader(b.id);
+  }));
+  g.querySelectorAll('[data-done]').forEach(x => x.addEventListener('click', async () => {
+    const b = S.books.find(b => b.id === x.dataset.done); b.finished = !b.finished; await DB.put('books', b); renderShelf();
+  }));
+  g.querySelectorAll('[data-rm]').forEach(x => x.addEventListener('click', async () => {
+    const b = S.books.find(b => b.id === x.dataset.rm);
+    if (!confirm(`Remove “${b.title}” and its file from this device?`)) return;
+    await DB.del('books', b.id); await DB.del('files', b.id);
+    S.books = S.books.filter(y => y.id !== b.id); renderShelf(); updateCounts(); updateStorageNote();
+  }));
+}
+$$('#shelf-filter button').forEach(b => b.addEventListener('click', () => {
+  $$('#shelf-filter button').forEach(x => x.classList.toggle('on', x === b)); S.shelfFilter = b.dataset.f; renderShelf();
+}));
+
+function updateCounts() {
+  $('#c-shelf').textContent = S.books.length;
+  const active = S.loans.filter(l => l.status !== 'returned');
+  const urgent = active.filter(l => daysUntil(l.due) <= 3);
+  const c = $('#c-loans'); c.textContent = active.length; c.classList.toggle('warn', urgent.length > 0);
+}
+async function updateStorageNote() {
+  const mb = S.books.reduce((n, b) => n + (b.size || 0), 0) / 1048576;
+  let txt = `${S.books.length} book${S.books.length === 1 ? '' : 's'} · ${mb.toFixed(1)} MB on device`;
+  if (navigator.storage?.estimate) { const e = await navigator.storage.estimate(); if (e.quota) txt += ` of ${(e.quota / 1073741824).toFixed(0)} GB`; }
+  $('#storage-note').textContent = txt;
+}
+
+/* =====================================================================
+   READER (epub.js)
+   ===================================================================== */
+const R = { book: null, rendition: null, current: null, cur: null, toc: [], fontSize: 100, lh: '1.65', theme: 'lamp', flow: 'paginated', saveT: null, busy: false };
+const wait = ms => new Promise(r => setTimeout(r, ms));
+const animOn = () => Settings.get('anim', 1) == 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+const THEMES = {
+  lamp:  { body: { background: '#221F19', color: '#D6CBB0' }, 'a': { color: '#D9A85A' }, 'h1,h2,h3,h4': { color: '#EADFC6' } },
+  sage:  { body: { background: '#E2E7D7', color: '#2A3327' }, 'a': { color: '#8A5E22' } },
+  amber: { body: { background: '#F2E3C4', color: '#46361F' }, 'a': { color: '#8A5E22' } },
+};
+
+async function openReader(id) {
+  const book = S.books.find(b => b.id === id); if (!book) return;
+  const f = await DB.get('files', id); if (!f) { toast('The file for this book is missing. Remove and re-add it.'); return; }
+  R.current = book; R.cur = null;
+  $('#reader').classList.toggle('comic', isPaged(book));
+  $('#comic-opts').style.display = isPaged(book) ? '' : 'none';
+  $('#text-opts').style.display = isPaged(book) ? 'none' : '';
+  if (isPaged(book)) return openComic(book, f);
+  R.fontSize = Settings.get('fontSize', 100); R.lh = Settings.get('lh', '1.65');
+  R.theme = Settings.get('rtheme', 'lamp'); R.flow = Settings.get('flow', 'paginated');
+  $('#reader').dataset.rtheme = R.theme;
+  $('#r-title').textContent = book.title; $('#r-chapter').textContent = '';
+  $('#r-loading').style.display = ''; $('#reader').classList.add('open');
+  closePanels(); syncReaderControls(); $('#place-chip').classList.remove('show'); R.placeOffered = false;
+
+  const bk = ePub(f.data); R.book = bk;
+  const rendition = bk.renderTo('view', {
+    width: '100%', height: '100%', flow: R.flow, spread: R.flow === 'paginated' ? 'auto' : 'none', minSpreadWidth: 900,
+    allowScriptedContent: false,
+  });
+  R.rendition = rendition;
+  for (const [k, v] of Object.entries(THEMES)) rendition.themes.register(k, v);
+  rendition.themes.select(R.theme);
+  rendition.themes.fontSize(R.fontSize + '%');
+  rendition.themes.override('line-height', R.lh);
+  rendition.themes.override('font-family', '"Crimson Pro", Georgia, serif');
+
+  await rendition.display(book.cfi || undefined);
+  $('#r-loading').style.display = 'none';
+
+  bk.loaded.navigation.then(nav => { R.toc = flattenToc(nav.toc); renderToc(); });
+  bk.locations.generate(1200).then(() => { if (R.cur) updateProgress(R.cur); });
+
+  rendition.on('relocated', loc => {
+    R.cur = loc;
+    updateProgress(loc); offerPlace();
+    clearTimeout(R.saveT);
+    R.saveT = setTimeout(async () => {
+      book.cfi = loc.start.cfi; book.lastReadAt = Date.now();
+      if (bk.locations.length()) book.pct = bk.locations.percentageFromCfi(loc.start.cfi) || 0;
+      if (loc.atEnd) { book.pct = 1; book.finished = true; }
+      await DB.put('books', book);
+    }, 400);
+  });
+  rendition.on('keyup', onKey);
+  let tx = null, ty = null;
+  rendition.on('touchstart', e => { tx = e.changedTouches[0].clientX; ty = e.changedTouches[0].clientY; });
+  rendition.on('touchend', e => {
+    if (tx === null || R.flow !== 'paginated') return;
+    const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 80) turn(dx < 0 ? 'next' : 'prev');
+    tx = ty = null;
+  });
+  rendition.on('click', () => closePanels());
+}
+
+function flattenToc(items, depth = 0) {
+  return items.flatMap(i => [{ label: i.label.trim(), href: i.href, depth }, ...(i.subitems?.length ? flattenToc(i.subitems, depth + 1) : [])]);
+}
+function chapterFor(href) {
+  if (!href) return '';
+  const clean = href.split('#')[0];
+  const t = R.toc.find(i => i.href.split('#')[0] === clean || clean.endsWith(i.href.split('#')[0]));
+  return t ? t.label : '';
+}
+function updateProgress(loc) {
+  const bk = R.book;
+  let pct = bk.locations.length() ? bk.locations.percentageFromCfi(loc.start.cfi) : null;
+  $('#r-pct').textContent = pct == null ? '…' : Math.round(pct * 100) + '%';
+  if (pct != null) $('#r-range').value = Math.round(pct * 1000);
+  $('#r-chapter').textContent = chapterFor(loc.start.href);
+  $('#r-left').textContent = pct == null ? '' : (loc.start.displayed ? `page ${loc.start.displayed.page} of ${loc.start.displayed.total} in chapter` : '');
+  const marked = R.current.bookmarks.some(b => b.cfi === loc.start.cfi);
+  $('#r-mark').classList.toggle('on', marked);
+}
+function onKey(e) {
+  if (!$('#reader').classList.contains('open')) return;
+  if (e.key === 'ArrowRight' || e.key === ' ') turn(R.current?.rtl ? 'prev' : 'next');
+  else if (e.key === 'ArrowLeft') turn(R.current?.rtl ? 'next' : 'prev');
+  else if (e.key === 'Escape') closeReader();
+}
+document.addEventListener('keyup', onKey);
+$('#tap-l').addEventListener('click', () => { closePanels(); turn(R.current?.rtl ? 'next' : 'prev'); });
+$('#tap-r').addEventListener('click', () => { closePanels(); turn(R.current?.rtl ? 'prev' : 'next'); });
+$('#r-range').addEventListener('change', e => {
+  if (isPaged(R.current)) { showPage(Math.round(e.target.value / 1000 * (C.pages.length - 1))); return; }
+  const bk = R.book; if (!bk?.locations.length()) return;
+  R.rendition.display(bk.locations.cfiFromPercentage(e.target.value / 1000));
+});
+
+/* ---- page turn: one entry point for both readers ---- */
+async function turn(dir) {
+  if (R.busy) return;
+  if (isPaged(R.current)) return turnComic(dir);
+  const rd = R.rendition; if (!rd) return;
+  if (!animOn() || R.flow !== 'paginated') return rd[dir]();
+  const v = $('#view'); R.busy = true;
+  try {
+    // Lift the page away from the spine, swap content while it's edge-on, then settle the new page.
+    v.style.transformOrigin = dir === 'next' ? 'left center' : 'right center';
+    v.className = 'turn-out';
+    v.style.transform = `rotateY(${dir === 'next' ? -75 : 75}deg)`; v.style.filter = 'brightness(.7)';
+    await wait(220);
+    await rd[dir]();
+    v.className = '';
+    v.style.transformOrigin = dir === 'next' ? 'right center' : 'left center';
+    v.style.transform = `rotateY(${dir === 'next' ? 40 : -40}deg)`; v.style.filter = 'brightness(.85)';
+    void v.offsetWidth;
+    v.className = 'turn-in'; v.style.transform = 'rotateY(0deg)'; v.style.filter = 'none';
+    await wait(200);
+  } finally { v.className = ''; v.style.transform = ''; v.style.filter = ''; R.busy = false; }
+}
+
+/* =====================================================================
+   COMIC / MANGA READER (CBZ)
+   ===================================================================== */
+const C = { zip: null, pdf: null, pages: [], urls: new Map(), page: 0, fit: 'h', spread: 'auto' };
+
+async function openComic(book, f) {
+  if (book.kind === 'pdf') {
+    C.zip = null; C.pdf = await pdfjsLib.getDocument({ data: f.data.slice(0) }).promise;
+    C.pages = Array.from({ length: C.pdf.numPages }, (_, i) => i);
+  } else {
+    C.pdf = null; C.zip = await JSZip.loadAsync(f.data);
+    C.pages = Object.keys(C.zip.files).filter(n => !C.zip.files[n].dir && IMG_RE.test(n) && !/__MACOSX|\/\./.test(n)).sort(natural);
+  }
+  C.urls.forEach(u => URL.revokeObjectURL(u)); C.urls.clear();
+  C.fit = Settings.get('cfit_' + book.kind, book.kind === 'pdf' ? 'w' : 'h'); C.spread = Settings.get('cspread', 'auto');
+  $('#comic').className = 'fit-' + C.fit;
+  syncReaderControls(); renderToc();
+  await showPage(Math.min(book.page || 0, C.pages.length - 1));
+  $('#r-loading').style.display = 'none';
+}
+async function pageURL(i) {
+  if (C.urls.has(i)) return C.urls.get(i);
+  const blob = C.pdf ? await renderPdfPage(C.pdf, i) : await C.zip.file(C.pages[i]).async('blob');
+  const u = URL.createObjectURL(blob); C.urls.set(i, u); return u;
+}
+function isDouble() {
+  if (C.spread !== 'auto' || C.fit !== 'h') return false;
+  const st = $('#stage'); return st.clientWidth > st.clientHeight * 1.15;
+}
+function spreadFor(p) {
+  const n = C.pages.length;
+  if (!isDouble() || p === 0) return [p];
+  const a = p % 2 === 1 ? p : p - 1;
+  return [a, a + 1].filter(x => x < n);
+}
+async function showPage(p, opts = {}) {
+  p = Math.max(0, Math.min(C.pages.length - 1, p));
+  const pages = spreadFor(p); C.page = pages[0];
+  const order = R.current.rtl ? [...pages].reverse() : pages;
+  const urls = await Promise.all(order.map(pageURL));
+  const sp = $('#spread'); sp.classList.toggle('double', pages.length > 1);
+  sp.innerHTML = urls.map((u, i) => `<img src="${u}" alt="Page ${order[i] + 1}" draggable="false">`).join('');
+  if (C.fit === 'w') $('#comic').scrollTop = 0;
+  // preload neighbours
+  [pages[pages.length - 1] + 1, pages[pages.length - 1] + 2, pages[0] - 1].forEach(i => { if (i >= 0 && i < C.pages.length) pageURL(i); });
+  updateComicProgress(); offerPlace();
+  const b = R.current; b.page = C.page; b.lastReadAt = Date.now();
+  b.pct = C.pages.length > 1 ? pages[pages.length - 1] / (C.pages.length - 1) : 1;
+  if (pages[pages.length - 1] >= C.pages.length - 1) { b.pct = 1; b.finished = true; }
+  clearTimeout(R.saveT); R.saveT = setTimeout(() => DB.put('books', b), 300);
+}
+function updateComicProgress() {
+  const n = C.pages.length, pages = spreadFor(C.page), last = pages[pages.length - 1];
+  $('#r-pct').textContent = Math.round(last / Math.max(1, n - 1) * 100) + '%';
+  $('#r-range').value = Math.round(C.page / Math.max(1, n - 1) * 1000);
+  $('#r-left').textContent = pages.length > 1 ? `pages ${pages[0] + 1}–${last + 1} of ${n}` : `page ${C.page + 1} of ${n}`;
+  $('#r-chapter').textContent = '';
+  $('#r-mark').classList.toggle('on', R.current.bookmarks.some(m => m.page === C.page));
+}
+async function turnComic(dir) {
+  const pages = spreadFor(C.page);
+  const target = dir === 'next' ? pages[pages.length - 1] + 1 : C.page - 1;
+  if (target < 0 || target >= C.pages.length) { if (target >= C.pages.length) toast('Last page'); return; }
+  if (!animOn() || C.fit === 'w') return showPage(target);
+  R.busy = true;
+  try {
+    // Physical flip: the outgoing spread becomes a leaf hinged at the spine-side edge and rotates over the incoming page.
+    const rtl = !!R.current.rtl;
+    const hingeLeft = dir === 'next' ? !rtl : rtl;   // LTR next: page lifts from the right, hinge on the left
+    const sp = $('#spread');
+    const leaf = document.createElement('div');
+    leaf.className = 'leaf ' + (hingeLeft ? 'hinge-l' : 'hinge-r');
+    leaf.style.width = '100%';
+    leaf.innerHTML = sp.innerHTML;
+    // if a double spread, the leaf is just the outer page so the inner one stays put
+    const imgs = leaf.querySelectorAll('img');
+    if (imgs.length > 1) {
+      (hingeLeft ? imgs[0] : imgs[1]).remove(); leaf.style.width = '50%'; leaf.querySelector('img').style.maxWidth = '100%';
+      leaf.style[hingeLeft ? 'left' : 'right'] = '50%';   // hinge sits on the spine
+    }
+    $('#comic').appendChild(leaf);
+    await showPage(target);
+    void leaf.offsetWidth; leaf.classList.add('flip');
+    await wait(430); leaf.remove();
+  } finally { R.busy = false; }
+}
+window.addEventListener('resize', () => { if (isPaged(R.current) && $('#reader').classList.contains('open')) showPage(C.page); });
+$$('#c-dir button').forEach(b => b.addEventListener('click', async () => {
+  R.current.rtl = b.dataset.d === 'rtl'; await DB.put('books', R.current); syncReaderControls(); showPage(C.page);
+}));
+$$('#c-fit button').forEach(b => b.addEventListener('click', () => {
+  C.fit = b.dataset.f; Settings.set('cfit_' + R.current.kind, C.fit); $('#comic').className = 'fit-' + C.fit; syncReaderControls(); showPage(C.page);
+}));
+$$('#c-spread button').forEach(b => b.addEventListener('click', () => {
+  C.spread = b.dataset.s; Settings.set('cspread', C.spread); syncReaderControls(); showPage(C.page);
+}));
+// swipe on the comic stage (no iframe here, so plain listeners work)
+(() => {
+  let sx = null, sy = null; const el = $('#comic');
+  el.addEventListener('touchstart', e => { sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if (sx === null) return; const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = sy = null;
+    if (Math.abs(dx) > 60 && Math.abs(dy) < 80) { closePanels(); const rtl = !!R.current?.rtl; turn((dx < 0) !== rtl ? 'next' : 'prev'); }
+  }, { passive: true });
+})();
+
+async function closeReader() {
+  clearTimeout(R.saveT);
+  if (isPaged(R.current)) {
+    await DB.put('books', R.current);
+    C.urls.forEach(u => URL.revokeObjectURL(u)); C.urls.clear(); C.zip = null; try { C.pdf?.destroy(); } catch {} C.pdf = null; C.pages = []; $('#spread').innerHTML = '';
+    R.current = null; $('#reader').classList.remove('open', 'comic'); renderShelf(); return;
+  }
+  if (R.cur && R.current) {
+    R.current.cfi = R.cur.start.cfi; R.current.lastReadAt = Date.now();
+    if (R.book.locations.length()) R.current.pct = R.book.locations.percentageFromCfi(R.cur.start.cfi) || R.current.pct;
+    await DB.put('books', R.current);
+  }
+  try { R.rendition?.destroy(); R.book?.destroy(); } catch {}
+  R.rendition = R.book = R.cur = null; $('#view').innerHTML = '';
+  $('#reader').classList.remove('open'); renderShelf();
+}
+$('#r-back').addEventListener('click', closeReader);
+
+/* ---- saved place: one explicit "I'm here" marker per book, separate from auto-resume ---- */
+function placeLabel(pl) { return `${Math.round((pl.pct || 0) * 100)}%${pl.chapter ? ' · ' + pl.chapter : pl.page != null ? ' · page ' + (pl.page + 1) : ''}`; }
+function atPlace() {
+  const pl = R.current?.place; if (!pl) return false;
+  return isPaged(R.current) ? pl.page === C.page : R.cur && pl.cfi === R.cur.start.cfi;
+}
+function offerPlace() {
+  const pl = R.current?.place; if (!pl || R.placeOffered) return;
+  R.placeOffered = true;
+  if (atPlace()) return;
+  $('#place-text').textContent = 'Your saved place: ' + placeLabel(pl);
+  $('#place-chip').classList.add('show');
+  clearTimeout(R.chipT); R.chipT = setTimeout(() => $('#place-chip').classList.remove('show'), 9000);
+}
+function goToPlace() {
+  const pl = R.current?.place; if (!pl) return;
+  $('#place-chip').classList.remove('show');
+  if (isPaged(R.current)) showPage(pl.page); else R.rendition?.display(pl.cfi);
+}
+$('#place-go').addEventListener('click', goToPlace);
+$('#place-x').addEventListener('click', () => $('#place-chip').classList.remove('show'));
+$('#r-place').addEventListener('click', async () => {
+  const b = R.current; if (!b) return;
+  if (isPaged(b)) {
+    b.place = { page: C.page, pct: C.page / Math.max(1, C.pages.length - 1), at: Date.now() };
+  } else {
+    if (!R.cur) return;
+    const cfi = R.cur.start.cfi;
+    b.place = { cfi, pct: R.book.locations.length() ? R.book.locations.percentageFromCfi(cfi) : b.pct, chapter: chapterFor(R.cur.start.href), at: Date.now() };
+  }
+  await DB.put('books', b);
+  $('#r-place').classList.add('on'); setTimeout(() => $('#r-place').classList.remove('on'), 900);
+  toast('Place saved at ' + placeLabel(b.place));
+});
+
+/* bookmarks + toc panel */
+$('#r-mark').addEventListener('click', async () => {
+  if (isPaged(R.current)) {
+    const b = R.current, i = b.bookmarks.findIndex(m => m.page === C.page);
+    if (i >= 0) { b.bookmarks.splice(i, 1); toast('Bookmark removed'); } else { b.bookmarks.push({ page: C.page, at: Date.now() }); toast(`Bookmarked page ${C.page + 1}`); }
+    await DB.put('books', b); updateComicProgress(); renderToc(); return;
+  }
+  if (!R.cur) return;
+  const cfi = R.cur.start.cfi, b = R.current;
+  const i = b.bookmarks.findIndex(x => x.cfi === cfi);
+  if (i >= 0) { b.bookmarks.splice(i, 1); toast('Bookmark removed'); }
+  else {
+    let snippet = '';
+    try { const range = await R.book.getRange(cfi); snippet = (range?.toString() || '').trim().slice(0, 60); } catch {}
+    b.bookmarks.push({ cfi, chapter: chapterFor(R.cur.start.href), snippet, at: Date.now(),
+      pct: R.book.locations.length() ? R.book.locations.percentageFromCfi(cfi) : null });
+    toast('Bookmarked');
+  }
+  await DB.put('books', b); updateProgress(R.cur); renderToc();
+});
+function renderToc() {
+  const b = R.current;
+  if (isPaged(b)) {
+    const bms = [...b.bookmarks].sort((x, y) => x.page - y.page);
+    $('#bm-list').innerHTML = bms.length ? bms.map(m => `<button class="item" data-page="${m.page}"><span>Page ${m.page + 1}</span><small>${Math.round(m.page / Math.max(1, C.pages.length - 1) * 100)}%</small></button>`).join('')
+      : '<div class="note">No bookmarks. Tap the ribbon icon to mark a page.</div>';
+    $('#toc-list').innerHTML = `<div class="note">${C.pages.length} pages. Drag the slider at the bottom to jump.</div>`;
+    $('#p-toc').querySelectorAll('[data-page]').forEach(x => x.addEventListener('click', () => { showPage(+x.dataset.page); closePanels(); }));
+    return;
+  }
+  $('#bm-list').innerHTML = b.bookmarks.length ? b.bookmarks.map((m, i) => `
+    <button class="item" data-cfi="${esc(m.cfi)}">
+      <span>${esc(m.chapter || 'Bookmark')}${m.snippet ? `<br><small>${esc(m.snippet)}…</small>` : ''}</span>
+      <small>${m.pct != null ? Math.round(m.pct * 100) + '%' : ''}</small>
+    </button>`).join('') : '<div class="note">No bookmarks in this book. Tap the ribbon icon to add one.</div>';
+  $('#toc-list').innerHTML = R.toc.map(t => `<button class="item ${t.depth ? 'sub' : ''}" data-href="${esc(t.href)}"><span>${esc(t.label)}</span></button>`).join('');
+  $('#p-toc').querySelectorAll('[data-cfi]').forEach(x => x.addEventListener('click', () => { R.rendition.display(x.dataset.cfi); closePanels(); }));
+  $('#p-toc').querySelectorAll('[data-href]').forEach(x => x.addEventListener('click', () => { R.rendition.display(x.dataset.href); closePanels(); }));
+}
+function closePanels() { $$('.panel').forEach(p => p.classList.remove('open')); }
+function togglePanel(id) { const p = $(id), was = p.classList.contains('open'); closePanels(); if (!was) p.classList.add('open'); }
+$('#r-toc').addEventListener('click', () => togglePanel('#p-toc'));
+$('#r-aa').addEventListener('click', () => togglePanel('#p-aa'));
+
+/* text settings */
+function syncReaderControls() {
+  $$('#c-dir button').forEach(b => b.classList.toggle('on', (b.dataset.d === 'rtl') === !!R.current?.rtl));
+  $$('#c-fit button').forEach(b => b.classList.toggle('on', b.dataset.f === C.fit));
+  $$('#c-spread button').forEach(b => b.classList.toggle('on', b.dataset.s === C.spread));
+  $$('#r-theme button').forEach(b => b.classList.toggle('on', b.dataset.t === R.theme));
+  $$('#r-lh button').forEach(b => b.classList.toggle('on', b.dataset.l === R.lh));
+  $$('#r-flow button').forEach(b => b.classList.toggle('on', b.dataset.f === R.flow));
+}
+$$('#r-theme button').forEach(b => b.addEventListener('click', () => {
+  R.theme = b.dataset.t; $('#reader').dataset.rtheme = R.theme; R.rendition?.themes.select(R.theme); Settings.set('rtheme', R.theme); syncReaderControls();
+}));
+$('#fs-minus').addEventListener('click', () => setFont(R.fontSize - 10));
+$('#fs-plus').addEventListener('click', () => setFont(R.fontSize + 10));
+function setFont(v) { R.fontSize = Math.min(220, Math.max(70, v)); R.rendition?.themes.fontSize(R.fontSize + '%'); Settings.set('fontSize', R.fontSize); }
+$$('#r-lh button').forEach(b => b.addEventListener('click', () => {
+  R.lh = b.dataset.l; R.rendition?.themes.override('line-height', R.lh); Settings.set('lh', R.lh); syncReaderControls();
+}));
+$$('#r-flow button').forEach(b => b.addEventListener('click', async () => {
+  if (b.dataset.f === R.flow) return;
+  await Settings.set('flow', b.dataset.f);
+  const id = R.current.id; await closeReader(); openReader(id);
+}));
+
+/* =====================================================================
+   LOANS
+   ===================================================================== */
+function loanState(l) {
+  if (l.status === 'returned') return 'returned';
+  const d = daysUntil(l.due);
+  return d < 0 ? 'overdue' : d <= 3 ? 'due-soon' : 'active';
+}
+function stampText(l) {
+  const st = loanState(l);
+  if (st === 'returned') return 'Returned';
+  const d = daysUntil(l.due);
+  if (d < 0) return `${-d} day${d === -1 ? '' : 's'} overdue`;
+  if (d === 0) return 'Due today';
+  if (d === 1) return 'Due tomorrow';
+  return `Due in ${d} days`;
+}
+function renderLoans() {
+  const list = S.loans
+    .filter(l => S.loanFilter === 'returned' ? l.status === 'returned' : l.status !== 'returned')
+    .sort((a, b) => a.due.localeCompare(b.due));
+  $('#loans-empty').style.display = list.length ? 'none' : '';
+  $('#loans').innerHTML = list.map(l => {
+    const st = loanState(l);
+    return `<div class="slip ${st === 'overdue' ? 'overdue' : ''} ${st === 'returned' ? 'returned' : ''}" data-id="${l.id}">
+      <div class="head">
+        <div><div class="title">${esc(l.title)}</div><div class="src">${esc(l.author || '')}${l.author ? ' · ' : ''}${esc(l.source)}</div></div>
+        <span class="stamp ${st}">${stampText(l)}</span>
+      </div>
+      <div class="dates">
+        <div class="d"><small>Checked out</small><b>${fmtDate(l.out)}</b></div>
+        <div class="d"><small>Due</small><b>${fmtDate(l.due)}</b></div>
+      </div>
+      ${l.notes ? `<div class="note" style="background:var(--surface);padding:2px 0">${esc(l.notes)}</div>` : ''}
+      <div class="foot">
+        ${l.status !== 'returned' ? `<button class="btn" data-return="${l.id}">Returned</button>
+        <button class="btn quiet" data-renew="${l.id}">Renew +${l.source === 'Library' ? 21 : 14}d</button>` : `<button class="btn quiet" data-unreturn="${l.id}">Still out</button>`}
+        <button class="btn quiet" data-edit="${l.id}">Edit</button>
+        <button class="btn quiet danger" data-del="${l.id}">Delete</button>
+      </div>
+    </div>`;
+  }).join('');
+  const L = id => S.loans.find(l => l.id === id);
+  const save = async l => { await DB.put('loans', l); renderLoans(); updateCounts(); };
+  $$('[data-return]').forEach(b => b.onclick = () => { const l = L(b.dataset.return); l.status = 'returned'; l.returnedAt = todayISO(); save(l); toast('Marked returned'); });
+  $$('[data-unreturn]').forEach(b => b.onclick = () => { const l = L(b.dataset.unreturn); l.status = 'active'; save(l); });
+  $$('[data-renew]').forEach(b => b.onclick = () => {
+    const l = L(b.dataset.renew); const n = l.source === 'Library' ? 21 : 14;
+    const base = new Date(Math.max(new Date(l.due + 'T00:00:00'), new Date(todayISO() + 'T00:00:00')));
+    base.setDate(base.getDate() + n); l.due = base.toISOString().slice(0, 10); l.renewals = (l.renewals || 0) + 1; save(l); toast(`Renewed to ${fmtDate(l.due)}`);
+  });
+  $$('[data-edit]').forEach(b => b.onclick = () => openLoanDialog(L(b.dataset.edit)));
+  $$('[data-del]').forEach(b => b.onclick = async () => {
+    const l = L(b.dataset.del); if (!confirm(`Delete the loan for “${l.title}”?`)) return;
+    await DB.del('loans', l.id); S.loans = S.loans.filter(x => x.id !== l.id); renderLoans(); updateCounts();
+  });
+}
+$$('#loan-filter button').forEach(b => b.addEventListener('click', () => {
+  $$('#loan-filter button').forEach(x => x.classList.toggle('on', x === b)); S.loanFilter = b.dataset.f; renderLoans();
+}));
+
+/* loan dialog with Open Library lookup */
+const dlg = $('#loan-dlg');
+function openLoanDialog(l) {
+  $('#loan-dlg-title').textContent = l ? 'Edit loan' : 'Add a loan';
+  $('#l-id').value = l?.id || ''; $('#l-title').value = l?.title || ''; $('#l-author').value = l?.author || '';
+  $('#l-source').value = l?.source || 'Library'; $('#l-notes').value = l?.notes || ''; $('#l-cover').value = l?.cover || '';
+  const out = l?.out || todayISO(); $('#l-out').value = out;
+  if (l) $('#l-due').value = l.due; else { const d = new Date(out + 'T00:00:00'); d.setDate(d.getDate() + 21); $('#l-due').value = d.toISOString().slice(0, 10); }
+  $('#ol-hits').innerHTML = ''; dlg.showModal(); $('#l-title').focus();
+}
+$('#loan-add').addEventListener('click', () => openLoanDialog(null));
+$('#loan-cancel').addEventListener('click', () => dlg.close());
+$('#l-source').addEventListener('change', () => {
+  if ($('#l-id').value) return;
+  const d = new Date($('#l-out').value + 'T00:00:00'); d.setDate(d.getDate() + ($('#l-source').value === 'Library' ? 21 : 14)); $('#l-due').value = d.toISOString().slice(0, 10);
+});
+let olT;
+$('#l-title').addEventListener('input', () => {
+  clearTimeout(olT); const q = $('#l-title').value.trim();
+  if (q.length < 3) { $('#ol-hits').innerHTML = ''; return; }
+  olT = setTimeout(async () => {
+    try {
+      const j = await (await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=6&fields=title,author_name,cover_i`)).json();
+      $('#ol-hits').innerHTML = (j.docs || []).map((d, i) => `<button type="button" data-i="${i}">
+        ${d.cover_i ? `<img src="https://covers.openlibrary.org/b/id/${d.cover_i}-S.jpg" alt="">` : '<span style="width:28px;height:42px;background:var(--raised);border-radius:2px;display:inline-block"></span>'}
+        <span><b>${esc(d.title)}</b><br><span class="note">${esc((d.author_name || []).slice(0, 2).join(', '))}</span></span></button>`).join('');
+      $('#ol-hits').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
+        const d = j.docs[b.dataset.i]; $('#l-title').value = d.title; $('#l-author').value = (d.author_name || [])[0] || '';
+        $('#l-cover').value = d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : ''; $('#ol-hits').innerHTML = '';
+      }));
+    } catch {}
+  }, 350);
+});
+$('#loan-form').addEventListener('submit', async e => {
+  e.preventDefault();
+  const id = $('#l-id').value || uid();
+  const existing = S.loans.find(l => l.id === id);
+  const l = { ...(existing || { status: 'active', createdAt: Date.now() }), id,
+    title: $('#l-title').value.trim(), author: $('#l-author').value.trim(), source: $('#l-source').value,
+    out: $('#l-out').value, due: $('#l-due').value, notes: $('#l-notes').value.trim(), cover: $('#l-cover').value };
+  if (l.due < l.out) { toast('Due date is before the checkout date'); return; }
+  await DB.put('loans', l);
+  if (existing) Object.assign(existing, l); else S.loans.push(l);
+  dlg.close(); renderLoans(); updateCounts(); toast(existing ? 'Loan updated' : 'Loan added');
+});
+
+/* notifications: in-app + browser, no server */
+async function refreshNotifButton() {
+  const b = $('#notif-btn');
+  if (!('Notification' in window)) { b.style.display = 'none'; return; }
+  b.textContent = Notification.permission === 'granted' ? 'Reminders on' : Notification.permission === 'denied' ? 'Reminders blocked' : 'Remind me';
+  b.disabled = Notification.permission !== 'default';
+}
+$('#notif-btn').addEventListener('click', async () => {
+  const p = await Notification.requestPermission(); refreshNotifButton();
+  if (p === 'granted') { toast('You’ll get a reminder when a loan is due within 3 days'); checkDueNotifications(true); }
+});
+async function checkDueNotifications(force) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const last = Settings.get('lastNotif', ''); if (!force && last === todayISO()) return;
+  const soon = S.loans.filter(l => l.status !== 'returned' && daysUntil(l.due) <= 3);
+  if (!soon.length) return;
+  const body = soon.map(l => `${l.title} — ${stampText(l).toLowerCase()}`).join('\n');
+  const opts = { body, tag: 'shelfmark-due', icon: $('link[rel=icon]').href };
+  try { const reg = await navigator.serviceWorker?.getRegistration(); if (reg) reg.showNotification('Library books due', opts); else new Notification('Library books due', opts); } catch {}
+  Settings.set('lastNotif', todayISO());
+}
+
+/* =====================================================================
+   DATA: export / import / wipe
+   ===================================================================== */
+$('#export').addEventListener('click', () => {
+  const data = { app: 'shelfmark', version: 1, exportedAt: new Date().toISOString(),
+    books: S.books.map(({ id, key, kind, title, author, source, url, cfi, pct, page, pages, rtl, place, bookmarks, finished, addedAt, lastReadAt }) => ({ id, key, kind, title, author, source, url, cfi, pct, page, pages, rtl, place, bookmarks, finished, addedAt, lastReadAt })),
+    loans: S.loans, settings: Settings.cache };
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+  a.download = `shelfmark-${todayISO()}.json`; a.click(); URL.revokeObjectURL(a.href);
+});
+$('#import').addEventListener('change', async e => {
+  const f = e.target.files[0]; if (!f) return;
+  try {
+    const d = JSON.parse(await f.text()); if (d.app !== 'shelfmark') throw 0;
+    for (const l of d.loans || []) { await DB.put('loans', l); if (!S.loans.some(x => x.id === l.id)) S.loans.push(l); else Object.assign(S.loans.find(x => x.id === l.id), l); }
+    let refetch = 0;
+    for (const b of d.books || []) {
+      const have = S.books.find(x => x.id === b.id || x.key === b.key);
+      if (have) { Object.assign(have, { cfi: b.cfi, pct: b.pct, page: b.page, rtl: b.rtl, place: b.place, bookmarks: b.bookmarks, finished: b.finished }); await DB.put('books', have); }
+      else if (b.url) { refetch++; await addBook({ key: b.key, title: b.title, author: b.author, url: b.url, source: b.source }).then(async () => {
+        const nb = S.books.find(x => x.key === b.key); if (nb) { Object.assign(nb, { cfi: b.cfi, pct: b.pct, bookmarks: b.bookmarks, finished: b.finished }); await DB.put('books', nb); } }); }
+    }
+    for (const [k, v] of Object.entries(d.settings || {})) await Settings.set(k, v);
+    applyAppTheme(Settings.get('theme', 'night'));
+    renderShelf(); renderLoans(); updateCounts(); updateStorageNote();
+    toast(`Imported ${d.loans?.length || 0} loans and ${d.books?.length || 0} books${refetch ? ` (${refetch} re-downloaded)` : ''}`);
+  } catch { toast('That file is not a Shelfmark export'); }
+  e.target.value = '';
+});
+$('#wipe').addEventListener('click', async () => {
+  if (!confirm('Delete all books, files, loans, and settings from this device?')) return;
+  for (const s of ['books', 'files', 'loans', 'settings']) await DB.clear(s);
+  S.books = []; S.loans = []; Settings.cache = {}; renderShelf(); renderLoans(); updateCounts(); updateStorageNote(); toast('Everything deleted');
+});
+
+/* =====================================================================
+   BOOT
+   ===================================================================== */
+(async function boot() {
+  await DB.open(); await Settings.load();
+  applyAppTheme(Settings.get('theme', 'night')); syncAnim();
+  S.books = await DB.all('books'); S.loans = await DB.all('loans');
+  renderShelf(); renderLoans(); updateCounts(); updateStorageNote(); refreshNotifButton();
+  if (S.books.length && !S.loans.length) showTab('shelf');
+  const urgent = S.loans.some(l => l.status !== 'returned' && daysUntil(l.due) <= 3);
+  if (urgent) showTab('loans');
+  checkDueNotifications(false);
+  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if (navigator.storage?.persist) navigator.storage.persist();
+})();
+</script>
+</body>
+</html>

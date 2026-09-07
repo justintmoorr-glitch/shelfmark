@@ -1,0 +1,14 @@
+{
+  "name": "Shelfmark",
+  "short_name": "Shelfmark",
+  "description": "Find free books, read them offline, and keep track of library due dates.",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#1B1F27",
+  "theme_color": "#1B1F27",
+  "icons": [
+    { "src": "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'%3E%3Crect width='512' height='512' rx='96' fill='%231B1F27'/%3E%3Crect x='144' y='96' width='224' height='320' rx='14' fill='%239DB0E9'/%3E%3Crect x='288' y='96' width='48' height='190' fill='%23E08A6C'/%3E%3C/svg%3E", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
