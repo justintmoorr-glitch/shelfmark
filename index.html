@@ -531,12 +531,13 @@ const DB = {
   db: null,
   open() {
     return new Promise((res, rej) => {
-      const r = indexedDB.open('shelfmark', 2);
+      const r = indexedDB.open('shelfmark', 3);
       r.onupgradeneeded = e => {
         const d = e.target.result;
         const need = (n, kp) => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, {keyPath: kp}); };
         need('books', 'id'); need('files', 'id'); need('loans', 'id'); need('settings', 'k');
-        need('locs', 'id');   // cached epub.js location index, one small JSON per book
+        need('locs', 'id');    // cached epub.js location index, one small JSON per book
+        need('parts', 'k');    // unpacked EPUB entries, keyed "<bookId>/<path>"
       };
       r.onsuccess = () => { DB.db = r.result; res(); };
       r.onerror = () => rej(r.error);
@@ -562,6 +563,59 @@ const Settings = {
   get: (k, d) => Settings.cache[k] ?? d,
   async set(k, v) { Settings.cache[k] = v; await DB.put('settings', {k, v}); },
 };
+
+/* =====================================================================
+   UNPACKING
+   An EPUB is a zip. Inflating the whole thing at read time is what makes
+   big books slow to open, so we do it once at upload, in a worker, and
+   store each entry separately. The service worker then serves them back
+   over /_book/<id>/<path> so epub.js can fetch chapters lazily.
+   ===================================================================== */
+const UNPACK_SRC = `
+importScripts('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+self.onmessage = async e => {
+  try {
+    const zip = await JSZip.loadAsync(e.data.buf);
+    const names = Object.keys(zip.files).filter(n => !zip.files[n].dir);
+    const parts = [];
+    for (let i = 0; i < names.length; i++) {
+      parts.push({ path: names[i].replace(/^\\.\\//, ''), blob: await zip.file(names[i]).async('blob') });
+      if (i % 25 === 0) self.postMessage({ progress: (i + 1) / names.length });
+    }
+    self.postMessage({ parts });
+  } catch (err) { self.postMessage({ error: String(err && err.message || err) }); }
+};`;
+let unpackURL;
+function unpackZip(buf, onProgress) {
+  return new Promise((resolve, reject) => {
+    unpackURL = unpackURL || URL.createObjectURL(new Blob([UNPACK_SRC], { type: 'text/javascript' }));
+    const w = new Worker(unpackURL);
+    w.onmessage = e => {
+      if (e.data.progress != null) return onProgress?.(e.data.progress);
+      w.terminate();
+      e.data.error ? reject(new Error(e.data.error)) : resolve(e.data.parts);
+    };
+    w.onerror = err => { w.terminate(); reject(new Error(err.message || 'unpack worker failed')); };
+    w.postMessage({ buf }, [buf]);   // transfer, no copy
+  });
+}
+async function saveParts(id, parts) {
+  await new Promise((res, rej) => {
+    const t = DB.db.transaction('parts', 'readwrite'), o = t.objectStore('parts');
+    for (const p of parts) o.put({ k: id + '/' + p.path, blob: p.blob });
+    t.oncomplete = res; t.onerror = () => rej(t.error);
+  });
+}
+async function deleteParts(id) {
+  await new Promise(res => {
+    const t = DB.db.transaction('parts', 'readwrite');
+    const req = t.objectStore('parts').openKeyCursor(IDBKeyRange.bound(id + '/', id + '/\uffff'));
+    req.onsuccess = e => { const c = e.target.result; if (c) { t.objectStore('parts').delete(c.key); c.continue(); } };
+    t.oncomplete = res; t.onerror = res;
+  });
+}
+// Unpacked books need the service worker to serve their parts.
+const swServing = () => !!navigator.serviceWorker?.controller;
 
 /* ---------- state ---------- */
 const S = { books: [], loans: [], shelfFilter: 'all', loanFilter: 'active' };
@@ -707,6 +761,14 @@ async function storeBuffer(h, buf) {
     extra = { pages: info.pages.length, page: 0, rtl: /manga|\(jp\)|japanese/i.test(h.title) };
   }
   await DB.put('files', { id, data: buf, cover: coverBlob });
+  if (info.kind === 'epub') {
+    // Keep the original zip as a fallback, but pre-unpack so opening is fast.
+    try {
+      const parts = await unpackZip(buf.slice(0), f => toast(`Unpacking… ${Math.round(f * 100)}%`));
+      await saveParts(id, parts);
+      extra.unpacked = true;
+    } catch (e) { console.warn('unpack failed, will open from the zip', e); }
+  }
   const book = { id, key: h.key, kind: info.kind, title, author, source: h.source, url: h.url || null, size: buf.byteLength,
     addedAt: Date.now(), lastReadAt: null, cfi: null, pct: 0, bookmarks: [], finished: false, ...extra };
   await DB.put('books', book); S.books.push(book);
@@ -830,7 +892,7 @@ async function renderShelf() {
   g.querySelectorAll('[data-rm]').forEach(x => x.addEventListener('click', async () => {
     const b = S.books.find(b => b.id === x.dataset.rm);
     if (!confirm(`Remove “${b.title}” and its file from this device?`)) return;
-    await DB.del('books', b.id); await DB.del('files', b.id); DB.del('locs', b.id).catch(() => {});
+    await DB.del('books', b.id); await DB.del('files', b.id); DB.del('locs', b.id).catch(() => {}); deleteParts(b.id).catch(() => {});
     S.books = S.books.filter(y => y.id !== b.id); renderShelf(); updateCounts(); updateStorageNote();
   }));
 }
@@ -882,11 +944,28 @@ async function openReader(id) {
   $('#r-title').textContent = book.title; $('#r-chapter').textContent = '';
   closePanels(); syncReaderControls(); $('#place-chip').classList.remove('show'); R.placeOffered = false;
 
-  setLoading('Unpacking the book…');
+  setLoading(book.unpacked && swServing() ? 'Opening…' : 'Unpacking the book…');
   await new Promise(r => requestAnimationFrame(r));
-  const bk = ePub(f.data); R.book = bk;
-  await bk.ready;
-  console.debug('[shelfmark] unpacked', Math.round(performance.now() - t0) + 'ms');
+
+  let bk = null;
+  if (book.unpacked && swServing()) {
+    // Fast path: epub.js fetches chapters on demand through the service worker.
+    try {
+      const cand = ePub(location.origin + '/_book/' + book.id + '/');
+      await cand.ready; bk = cand;
+      console.debug('[shelfmark] opened unpacked', Math.round(performance.now() - t0) + 'ms');
+    } catch (e) { console.warn('unpacked open failed, falling back to the zip', e); }
+  }
+  if (!bk) {
+    // Fallback: inflate the whole archive, the original behaviour.
+    setLoading('Unpacking the book…');
+    if (!f.data) { setLoading(''); $('#reader').classList.remove('open'); toast('This book could not be opened. Remove and re-add it.'); return; }
+    bk = ePub(f.data);
+    await bk.ready;
+    console.debug('[shelfmark] opened from zip', Math.round(performance.now() - t0) + 'ms');
+    if (!book.unpacked) upgradeToUnpacked(book);   // unpack it in the background for next time
+  }
+  R.book = bk;
   setLoading('Laying out the page…');
   const rendition = bk.renderTo('view', {
     width: '100%', height: '100%', flow: R.flow, spread: R.flow === 'paginated' ? 'auto' : 'none', minSpreadWidth: 900,
@@ -927,6 +1006,21 @@ async function openReader(id) {
     tx = ty = null;
   });
   rendition.on('click', () => closePanels());
+}
+
+/* Books added before unpacking existed get upgraded quietly the first time they're opened. */
+async function upgradeToUnpacked(book) {
+  if (book.kind !== 'epub' || book.unpacked || book.upgrading) return;
+  book.upgrading = true;
+  setTimeout(async () => {
+    try {
+      const f = await DB.get('files', book.id); if (!f?.data) return;
+      const parts = await unpackZip(f.data.slice(0));
+      await saveParts(book.id, parts);
+      book.unpacked = true; delete book.upgrading; await DB.put('books', book);
+      console.debug('[shelfmark] upgraded to unpacked:', book.title);
+    } catch (e) { delete book.upgrading; console.warn('background unpack failed', e); }
+  }, 4000);
 }
 
 /* The location index powers the % and the slider. It costs seconds on a long book,
@@ -1397,7 +1491,7 @@ $('#import').addEventListener('change', async e => {
 });
 $('#wipe').addEventListener('click', async () => {
   if (!confirm('Delete all books, files, loans, and settings from this device?')) return;
-  for (const s of ['books', 'files', 'loans', 'settings', 'locs']) await DB.clear(s);
+  for (const s of ['books', 'files', 'loans', 'settings', 'locs', 'parts']) await DB.clear(s);
   S.books = []; S.loans = []; Settings.cache = {}; renderShelf(); renderLoans(); updateCounts(); updateStorageNote(); toast('Everything deleted');
 });
 
@@ -1413,7 +1507,16 @@ $('#wipe').addEventListener('click', async () => {
   const urgent = S.loans.some(l => l.status !== 'returned' && daysUntil(l.due) <= 3);
   if (urgent) showTab('loans');
   checkDueNotifications(false);
-  if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js').catch(() => {});
+  if ('serviceWorker' in navigator) {
+    try {
+      await navigator.serviceWorker.register('sw.js');
+      // On the very first visit the page isn't controlled yet; claim happens on activate.
+      if (!navigator.serviceWorker.controller) await Promise.race([
+        new Promise(r => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })),
+        new Promise(r => setTimeout(r, 1500)),
+      ]);
+    } catch {}
+  }
   if (navigator.storage?.persist) navigator.storage.persist();
 })();
 </script>
