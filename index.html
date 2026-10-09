@@ -101,6 +101,20 @@ input::placeholder{color:var(--muted)}
   border:1px dashed var(--line);border-radius:var(--radius);padding:36px 24px;color:var(--muted);
   text-align:center;max-width:56ch;
 }
+.bootbar{
+  position:fixed;left:0;right:0;top:0;z-index:60;display:none;gap:12px;align-items:flex-start;
+  background:var(--stamp);color:#fff;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));
+  font-size:15px;line-height:1.4;box-shadow:var(--shadow);
+}
+.bootbar.show{display:flex}
+.bootbar span{flex:1}
+.bootbar button{background:rgba(0,0,0,.25);color:#fff;border-radius:6px;padding:6px 12px;min-height:34px;white-space:nowrap}
+pre.diag{
+  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;
+  white-space:pre-wrap;word-break:break-word;margin:12px 0 0;display:none;
+}
+pre.diag.show{display:block}
 .toast{
   position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);
   background:var(--raised);border:1px solid var(--line);padding:12px 18px;border-radius:10px;box-shadow:var(--shadow);
@@ -388,6 +402,14 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
         <label class="btn">Import JSON <input type="file" id="import" accept="application/json" hidden></label>
         <button class="btn danger quiet" id="wipe">Delete everything</button>
       </div>
+      <h2>Troubleshooting</h2>
+      <p class="note">If books won't save or open, this shows what the app can actually see.</p>
+      <div class="row" style="margin-top:12px">
+        <button class="btn" id="diag-run">Run diagnostics</button>
+        <button class="btn quiet" id="diag-copy" style="display:none">Copy</button>
+      </div>
+      <pre class="diag" id="diag"></pre>
+
       <h2>About</h2>
       <p class="note">Shelfmark reads DRM-free EPUBs with epub.js, PDFs with pdf.js, and CBZ comics with JSZip. Search comes from Gutendex. Covers and metadata for loans come from Open Library. Suggestions run through your own recommendation endpoint at <code>/api/recommend</code>.</p>
     </section>
@@ -502,6 +524,7 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
   </form>
 </dialog>
 
+<div class="bootbar" id="bootbar"><span id="bootbar-text"></span><button id="bootbar-reload">Reload</button></div>
 <div class="toast" id="toast"></div>
 
 <script>
@@ -519,6 +542,9 @@ const todayISO = () => new Date().toISOString().slice(0, 10);
 const fmtDate = iso => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'});
 const daysUntil = iso => Math.round((new Date(iso + 'T00:00:00') - new Date(todayISO() + 'T00:00:00')) / DAY);
 
+const withTimeout = (p, ms, label) => Promise.race([
+  p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)),
+]);
 const setLoading = t => { const el = $('#r-loading'); if (el) { el.textContent = t; el.style.display = t ? '' : 'none'; } };
 let toastTimer;
 function toast(msg) {
@@ -526,25 +552,72 @@ function toast(msg) {
   clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
 }
 
-/* ---------- IndexedDB ---------- */
+/* ---------- IndexedDB ----------
+   Opening has to survive three awkward cases, all of which used to stall boot:
+   another tab holding an older version open (blocked), a database already newer
+   than this build asks for (VersionError), and storage being unavailable
+   entirely (private browsing). None of them may hang silently. */
+const SCHEMA = 3;
+const STORES = [['books','id'],['files','id'],['loans','id'],['settings','k'],['locs','id'],['parts','k']];
 const DB = {
   db: null,
-  open() {
-    return new Promise((res, rej) => {
-      const r = indexedDB.open('shelfmark', 3);
+  version: null,
+  async open() {
+    if (!self.indexedDB) throw new Error('This browser has no storage available for the app. If you are in a private window, open Shelfmark in a normal one.');
+
+    // Find out what version actually exists before asking for one.
+    const existing = await new Promise(res => {
+      let settled = false;
+      const done = v => { if (!settled) { settled = true; res(v); } };
+      const probe = indexedDB.open('shelfmark');
+      probe.onsuccess = () => { const v = probe.result.version; probe.result.close(); done(v); };
+      probe.onerror = () => done(null);
+      probe.onblocked = () => done(null);
+      setTimeout(() => done(null), 4000);
+    });
+
+    // Never request a LOWER version than what's on disk — that throws VersionError.
+    const want = existing && existing > SCHEMA ? existing : SCHEMA;
+
+    const db = await new Promise((res, rej) => {
+      let settled = false;
+      const fail = e => { if (!settled) { settled = true; rej(e); } };
+      const r = indexedDB.open('shelfmark', want);
       r.onupgradeneeded = e => {
         const d = e.target.result;
-        const need = (n, kp) => { if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, {keyPath: kp}); };
-        need('books', 'id'); need('files', 'id'); need('loans', 'id'); need('settings', 'k');
-        need('locs', 'id');    // cached epub.js location index, one small JSON per book
-        need('parts', 'k');    // unpacked EPUB entries, keyed "<bookId>/<path>"
+        for (const [n, kp] of STORES) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: kp });
       };
-      r.onsuccess = () => { DB.db = r.result; res(); };
-      r.onerror = () => rej(r.error);
+      r.onsuccess = () => { if (!settled) { settled = true; res(r.result); } };
+      r.onerror = () => fail(r.error || new Error('Could not open storage'));
+      r.onblocked = () => fail(new Error('Another copy of Shelfmark is open and holding the database. Close the other tab (or the installed app) and reload.'));
+      setTimeout(() => fail(new Error('Opening storage timed out. Close any other Shelfmark tab or the installed app, then reload.')), 10000);
     });
+
+    // A missing store means a half-finished upgrade; one forced bump repairs it.
+    const missing = STORES.filter(([n]) => !db.objectStoreNames.contains(n)).map(([n]) => n);
+    if (missing.length) {
+      console.warn('[shelfmark] repairing schema, missing:', missing.join(', '));
+      const v = db.version + 1; db.close();
+      DB.db = await new Promise((res, rej) => {
+        const r = indexedDB.open('shelfmark', v);
+        r.onupgradeneeded = e => {
+          const d = e.target.result;
+          for (const [n, kp] of STORES) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: kp });
+        };
+        r.onsuccess = () => res(r.result);
+        r.onerror = () => rej(r.error);
+        r.onblocked = () => rej(new Error('Close any other Shelfmark tab and reload.'));
+      });
+    } else DB.db = db;
+
+    DB.version = DB.db.version;
+    // If another tab upgrades later, our handle goes stale — tell the user rather than failing writes.
+    DB.db.onversionchange = () => { DB.db.close(); DB.db = null; bootError('Shelfmark was updated in another tab. Reload this page to continue.'); };
+    console.debug('[shelfmark] db open, version', DB.version, '| stores:', [...DB.db.objectStoreNames].join(', '));
   },
   tx(store, mode, fn) {
     return new Promise((res, rej) => {
+      if (!DB.db) return rej(new Error('Storage is not open — reload the page.'));
       const t = DB.db.transaction(store, mode);
       const req = fn(t.objectStore(store));
       req.onsuccess = () => res(req.result);
@@ -614,8 +687,21 @@ async function deleteParts(id) {
     t.oncomplete = res; t.onerror = res;
   });
 }
-// Unpacked books need the service worker to serve their parts.
-const swServing = () => !!navigator.serviceWorker?.controller;
+// Unpacked books need the service worker to serve their parts. Having a controller
+// is not enough — an older sw.js has no /_book/ route — so ask it directly, once.
+let swProbe = null;
+function swCanServe() {
+  if (!navigator.serviceWorker?.controller) return Promise.resolve(false);
+  swProbe = swProbe || (async () => {
+    try {
+      const r = await withTimeout(fetch('/_book/__ping'), 3000, 'service worker ping');
+      const ok = r.ok && (await r.text()).trim() === 'shelfmark-parts-ok';
+      if (!ok) console.warn('[shelfmark] service worker is not serving book parts — using the zip path');
+      return ok;
+    } catch (e) { console.warn('[shelfmark] part route unavailable:', e.message); return false; }
+  })();
+  return swProbe;
+}
 
 /* ---------- state ---------- */
 const S = { books: [], loans: [], shelfFilter: 'all', loanFilter: 'active' };
@@ -711,6 +797,7 @@ async function renderPdfPage(doc, i, scale) {
   return await new Promise(r => c.toBlob(r, 'image/jpeg', .9));
 }
 async function sniff(buf) {
+  if (!self.JSZip || !self.ePub) throw new Error('The reader libraries did not load — connect to the internet once so they can be cached, then try again');
   const head = new TextDecoder('latin1').decode(new Uint8Array(buf.slice(0, 5)));
   if (head.startsWith('%PDF')) {
     if (!window.pdfjsLib) throw new Error('The PDF library did not load. Check your connection and try again.');
@@ -762,12 +849,18 @@ async function storeBuffer(h, buf) {
   }
   await DB.put('files', { id, data: buf, cover: coverBlob });
   if (info.kind === 'epub') {
-    // Keep the original zip as a fallback, but pre-unpack so opening is fast.
+    // Pre-unpack so opening is fast, but the zip stays as the fallback. This step is
+    // an optimisation only: if it fails or stalls, the book is still added.
     try {
-      const parts = await unpackZip(buf.slice(0), f => toast(`Unpacking… ${Math.round(f * 100)}%`));
+      const parts = await withTimeout(
+        unpackZip(buf.slice(0), f => setLoading(`Unpacking… ${Math.round(f * 100)}%`)),
+        90000, 'Unpacking');
       await saveParts(id, parts);
       extra.unpacked = true;
-    } catch (e) { console.warn('unpack failed, will open from the zip', e); }
+    } catch (e) {
+      console.warn('[shelfmark] unpack skipped:', e.message);
+      try { await deleteParts(id); } catch {}   // no half-written set left behind
+    }
   }
   const book = { id, key: h.key, kind: info.kind, title, author, source: h.source, url: h.url || null, size: buf.byteLength,
     addedAt: Date.now(), lastReadAt: null, cfi: null, pct: 0, bookmarks: [], finished: false, ...extra };
@@ -799,9 +892,11 @@ async function addFiles(files) {
     const title = f.name.replace(/\.(epub|cbz|zip|pdf)$/i, '').replace(/[-_]+/g, ' ').trim();
     const key = 'file-' + f.name + '-' + f.size;
     if (S.books.some(b => b.key === key)) { toast(`“${title}” is already on your shelf`); continue; }
-    toast(`Adding “${title}”…`);
-    try { await storeBuffer({ key, title, author: '', source: 'Upload' }, await f.arrayBuffer()); ok++; }
-    catch (e) { toast(`${f.name}: ${e.message}`); }
+    setLoading(''); toast(`Adding “${title}”…`);
+    try {
+      await withTimeout(storeBuffer({ key, title, author: '', source: 'Upload' }, await f.arrayBuffer()), 180000, `Adding ${f.name}`);
+      ok++;
+    } catch (e) { console.error('[shelfmark] add failed', f.name, e); toast(`${f.name}: ${e.message}`); }
   }
   if (ok) { toast(`Added ${ok} ${ok === 1 ? 'book' : 'books'} to your shelf`); showTab('shelf'); }
 }
@@ -944,24 +1039,38 @@ async function openReader(id) {
   $('#r-title').textContent = book.title; $('#r-chapter').textContent = '';
   closePanels(); syncReaderControls(); $('#place-chip').classList.remove('show'); R.placeOffered = false;
 
-  setLoading(book.unpacked && swServing() ? 'Opening…' : 'Unpacking the book…');
+  const fast = book.unpacked && await swCanServe();
+  setLoading(fast ? 'Opening…' : 'Unpacking the book…');
   await new Promise(r => requestAnimationFrame(r));
 
   let bk = null;
-  if (book.unpacked && swServing()) {
+  if (fast) {
     // Fast path: epub.js fetches chapters on demand through the service worker.
+    let cand = null;
     try {
-      const cand = ePub(location.origin + '/_book/' + book.id + '/');
-      await cand.ready; bk = cand;
+      cand = ePub(location.origin + '/_book/' + book.id + '/');
+      await withTimeout(cand.ready, 10000, 'Opening the unpacked book');
+      bk = cand;
       console.debug('[shelfmark] opened unpacked', Math.round(performance.now() - t0) + 'ms');
-    } catch (e) { console.warn('unpacked open failed, falling back to the zip', e); }
+    } catch (e) {
+      console.warn('[shelfmark] unpacked open failed, falling back to the zip:', e.message);
+      try { cand?.destroy(); } catch {}
+    }
   }
   if (!bk) {
     // Fallback: inflate the whole archive, the original behaviour.
     setLoading('Unpacking the book…');
     if (!f.data) { setLoading(''); $('#reader').classList.remove('open'); toast('This book could not be opened. Remove and re-add it.'); return; }
-    bk = ePub(f.data);
-    await bk.ready;
+    try {
+      bk = ePub(f.data);
+      await withTimeout(bk.ready, 120000, 'Opening the book');
+    } catch (e) {
+      console.error('[shelfmark] open failed', e);
+      try { bk?.destroy(); } catch {}
+      setLoading(''); $('#reader').classList.remove('open');
+      toast(e.message.includes('timed out') ? 'This book is taking too long to open — it may be corrupt.' : 'Could not open this book: ' + e.message);
+      return;
+    }
     console.debug('[shelfmark] opened from zip', Math.round(performance.now() - t0) + 'ms');
     if (!book.unpacked) upgradeToUnpacked(book);   // unpack it in the background for next time
   }
@@ -1015,11 +1124,11 @@ async function upgradeToUnpacked(book) {
   setTimeout(async () => {
     try {
       const f = await DB.get('files', book.id); if (!f?.data) return;
-      const parts = await unpackZip(f.data.slice(0));
+      const parts = await withTimeout(unpackZip(f.data.slice(0)), 90000, 'Background unpack');
       await saveParts(book.id, parts);
       book.unpacked = true; delete book.upgrading; await DB.put('books', book);
       console.debug('[shelfmark] upgraded to unpacked:', book.title);
-    } catch (e) { delete book.upgrading; console.warn('background unpack failed', e); }
+    } catch (e) { delete book.upgrading; deleteParts(book.id).catch(() => {}); console.warn('[shelfmark] background unpack failed:', e.message); }
   }, 4000);
 }
 
@@ -1498,8 +1607,85 @@ $('#wipe').addEventListener('click', async () => {
 /* =====================================================================
    BOOT
    ===================================================================== */
+function bootError(msg) {
+  const bar = $('#bootbar'); if (!bar) return;
+  $('#bootbar-text').textContent = msg;
+  bar.classList.add('show');
+  console.error('[shelfmark]', msg);
+}
+$('#bootbar-reload').addEventListener('click', () => location.reload());
+
+/* One screen that answers "why isn't this working" without a debugger. */
+async function diagnostics() {
+  const L = [];
+  const yn = v => v ? 'yes' : 'no';
+  L.push('Shelfmark diagnostics — ' + new Date().toISOString());
+  L.push('URL: ' + location.origin);
+  L.push('Standalone (installed): ' + yn(matchMedia('(display-mode: standalone)').matches));
+  L.push('');
+  L.push('-- storage --');
+  L.push('IndexedDB present: ' + yn(!!self.indexedDB));
+  L.push('DB open: ' + yn(!!DB.db) + (DB.version ? ' (version ' + DB.version + ', expected ' + SCHEMA + ')' : ''));
+  L.push('Stores: ' + (DB.db ? [...DB.db.objectStoreNames].join(', ') : 'n/a'));
+  const expect = STORES.map(x => x[0]);
+  L.push('Missing stores: ' + (DB.db ? (expect.filter(n => !DB.db.objectStoreNames.contains(n)).join(', ') || 'none') : 'n/a'));
+  try {
+    L.push('Books: ' + (await DB.all('books')).length + ' | Loans: ' + (await DB.all('loans')).length);
+  } catch (e) { L.push('Read test FAILED: ' + e.message); }
+  try {
+    await DB.put('settings', { k: '__diag', v: Date.now() }); await DB.del('settings', '__diag');
+    L.push('Write test: ok');
+  } catch (e) { L.push('Write test FAILED: ' + e.message); }
+  if (navigator.storage?.estimate) {
+    const e = await navigator.storage.estimate();
+    L.push('Used: ' + ((e.usage || 0) / 1048576).toFixed(1) + ' MB of ' + ((e.quota || 0) / 1073741824).toFixed(2) + ' GB');
+    if (navigator.storage.persisted) L.push('Persistent storage granted: ' + yn(await navigator.storage.persisted()));
+  }
+  L.push('');
+  L.push('-- libraries (needed to read books) --');
+  L.push('JSZip: ' + yn(!!self.JSZip) + '   epub.js: ' + yn(!!self.ePub) + '   pdf.js: ' + yn(!!self.pdfjsLib));
+  L.push('');
+  L.push('-- service worker --');
+  L.push('Supported: ' + yn('serviceWorker' in navigator) + '   controlling this page: ' + yn(!!navigator.serviceWorker?.controller));
+  try {
+    const regs = await navigator.serviceWorker.getRegistrations();
+    L.push('Registrations: ' + regs.length + (regs[0]?.active ? ' (active)' : ''));
+  } catch {}
+  L.push('Book-parts route (/_book/): ' + (await swCanServe() ? 'working' : 'NOT serving — unpacked fast path is off'));
+  L.push('');
+  L.push('-- network --');
+  for (const [name, url] of [['Gutendex', 'https://gutendex.com/books?page=1'], ['recommend API', '/api/recommend']]) {
+    try {
+      const r = await withTimeout(fetch(url, name === 'recommend API'
+        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"history":[],"loans":[]}' } : {}), 8000, name);
+      let extra = '';
+      if (name === 'recommend API' && !r.ok) { const j = await r.json().catch(() => ({})); extra = ' — ' + (j.detail || j.error || ''); }
+      L.push(name + ': HTTP ' + r.status + extra);
+    } catch (e) { L.push(name + ': ' + e.message); }
+  }
+  return L.join('\n');
+}
+$('#diag-run').addEventListener('click', async () => {
+  const out = $('#diag'), btn = $('#diag-run');
+  btn.disabled = true; btn.textContent = 'Checking…';
+  out.classList.add('show'); out.textContent = 'Running…';
+  try { out.textContent = await diagnostics(); } catch (e) { out.textContent = 'Diagnostics failed: ' + e.message; }
+  btn.disabled = false; btn.textContent = 'Run diagnostics'; $('#diag-copy').style.display = '';
+});
+$('#diag-copy').addEventListener('click', async () => {
+  try { await navigator.clipboard.writeText($('#diag').textContent); toast('Copied'); }
+  catch { toast('Select the text and copy it manually'); }
+});
+
 (async function boot() {
-  await DB.open(); await Settings.load();
+  try {
+    await DB.open();
+  } catch (e) {
+    bootError(e.message + ' (Settings → Run diagnostics for details.)');
+    showTab('settings');
+    return;   // stop here rather than running on a broken database
+  }
+  await Settings.load();
   applyAppTheme(Settings.get('theme', 'night')); syncAnim();
   S.books = await DB.all('books'); S.loans = await DB.all('loans');
   renderShelf(); renderLoans(); updateCounts(); updateStorageNote(); refreshNotifButton();
@@ -1518,7 +1704,7 @@ $('#wipe').addEventListener('click', async () => {
     } catch {}
   }
   if (navigator.storage?.persist) navigator.storage.persist();
-})();
+})().catch(e => bootError('Startup problem: ' + e.message));
 </script>
 </body>
 </html>

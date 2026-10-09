@@ -1,6 +1,6 @@
 // Shelfmark service worker: app shell precached, CDN libs + fonts cached on first use.
 // Book files are NOT handled here; they live in IndexedDB.
-const VERSION = 'shelfmark-v2';
+const VERSION = 'shelfmark-v3';
 const SHELL = ['./', './index.html', './manifest.json'];
 const RUNTIME_HOSTS = ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
@@ -35,6 +35,8 @@ function db() {
 }
 async function servePart(pathname) {
   const key = decodeURIComponent(pathname.slice('/_book/'.length));
+  // Capability probe: lets the page confirm this sw.js actually has the part route.
+  if (key === '__ping') return new Response('shelfmark-parts-ok', { status: 200, headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
   try {
     const d = await db();
     if (!d.objectStoreNames.contains('parts')) return new Response('no parts store', { status: 404 });
