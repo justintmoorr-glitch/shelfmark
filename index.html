@@ -430,6 +430,18 @@ pre.diag.show{display:block}
             <button data-f="paginated">Pages</button><button data-f="scrolled">Scroll</button>
           </div>
         </div>
+        <div class="opt"><span>Front matter<br><small style="opacity:.6">Licences, title pages</small></span>
+          <div class="segment" id="r-trim">
+            <button data-x="1">Skip</button><button data-x="0">Show</button>
+          </div>
+        </div>
+        <div class="opt" style="border:0;display:block">
+          <div class="note" id="start-note" style="margin-bottom:8px"></div>
+          <div class="row">
+            <button class="btn" id="set-start">Start the book here</button>
+            <button class="btn quiet" id="clear-start">Reset</button>
+          </div>
+        </div>
       </div>
       <div id="comic-opts" style="display:none">
         <h4>Pages</h4>
@@ -894,6 +906,7 @@ const R = {
   urls: new Map(), weights: [], cumulative: [], total: 1,
   fontSize: 100, lh: '1.65', margin: 40, cols: 'auto', flow: 'paginated', theme: 'lamp',
   placeOffered: false, pdf: null, comicPages: [], fit: 'h', spread: 'auto',
+  first: 0, last: 0, trimStart: false, trimEnd: false,
 };
 const animOn = () => Settings.get('anim', 1) == 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches;
 const isPaged = b => b && (b.kind === 'cbz' || (b.kind === 'pdf' && R.pdf));
@@ -964,11 +977,7 @@ async function openEpub(book, data) {
   R.pkg.spine = R.pkg.spine.filter(s => R.zip.has(s.href));
   if (!R.pkg.spine.length) throw new Error('None of this EPUB’s chapters could be found inside the file');
 
-  // Progress weighting by chapter size — no indexing pass needed.
-  R.weights = R.pkg.spine.map(s => Math.max(1, R.zip.size(s.href)));
-  R.total = R.weights.reduce((a, b) => a + b, 0);
-  R.cumulative = []; let run = 0;
-  for (const w of R.weights) { R.cumulative.push(run); run += w; }
+  await computeBounds(book);
 
   R.toc = [];
   try {
@@ -977,11 +986,112 @@ async function openEpub(book, data) {
   } catch (e) { console.warn('[shelfmark] toc unreadable', e); }
   if (!R.toc.length) R.toc = R.pkg.spine.map((s, i) => ({ label: 'Section ' + (i + 1), href: s.href, depth: 0 }));
 
-  const pos = book.pos || { idx: 0, page: 0 };
+  const fresh = !book.pos || (book.pos.idx === 0 && book.pos.page === 0 && !book.lastReadAt);
+  const pos = fresh ? { idx: startIdx(), page: startPage() } : book.pos;
   R.idx = clamp(pos.idx | 0, 0, R.pkg.spine.length - 1);
   await renderChapter(R.idx, { page: pos.page | 0 });
   renderToc();
+  if (fresh && (R.first > 0 || R.trimStart)) toast('Skipped the Project Gutenberg front matter');
 }
+
+/* Project Gutenberg wraps every book in a licence header and a long licence
+   footer. They are real content in the file, so left alone they take up pages
+   and skew the progress percentage. These find them without touching anything
+   that is actually part of the book. */
+const PG_START = /\*{3}\s*START OF (?:THE|THIS) PROJECT GUTENBERG/i;
+const PG_END = /\*{3}\s*END OF (?:THE|THIS) PROJECT GUTENBERG/i;
+const trimOn = () => Settings.get('trimFront', 1) == 1;
+
+function topLevelContaining(doc, re) {
+  const body = doc.body; if (!body) return null;
+  const w = doc.createTreeWalker(body, 4 /* text nodes */);
+  let n;
+  while ((n = w.nextNode())) {
+    if (re.test(n.nodeValue || '')) {
+      let e = n.parentElement;
+      while (e && e.parentElement && e.parentElement !== body) e = e.parentElement;
+      return e && e.parentElement === body ? e : null;
+    }
+  }
+  return null;
+}
+function trimBoilerplate(doc, atStart, atEnd) {
+  let cut = false;
+  // Newer Gutenberg EPUBs label the blocks outright.
+  for (const sel of ['#pg-header', '.pg-boilerplate.pgheader']) {
+    if (!atStart) break;
+    const el = doc.querySelector(sel);
+    if (el) { let p; while ((p = el.previousSibling)) p.remove(); el.remove(); cut = true; }
+  }
+  for (const sel of ['#pg-footer', '.pg-boilerplate.pgfooter']) {
+    if (!atEnd) break;
+    const el = doc.querySelector(sel);
+    if (el) { let n; while ((n = el.nextSibling)) n.remove(); el.remove(); cut = true; }
+  }
+  // Otherwise fall back to the *** START/END OF *** markers.
+  if (atStart && !cut) {
+    const el = topLevelContaining(doc, PG_START);
+    if (el) { let p; while ((p = el.previousSibling)) p.remove(); el.remove(); cut = true; }
+  }
+  if (atEnd) {
+    const el = topLevelContaining(doc, PG_END);
+    if (el) { let n; while ((n = el.nextSibling)) n.remove(); el.remove(); cut = true; }
+  }
+  return cut;
+}
+
+/* Work out which spine sections hold the actual book. Only the first and last
+   few sections are read, so this costs nothing on a long book. */
+async function computeBounds(book) {
+  const n = R.pkg.spine.length;
+  R.first = 0; R.last = n - 1;
+  R.trimStart = R.trimEnd = false;
+  R.scale = new Array(n).fill(1);
+  if (!trimOn()) { rebuildWeights(); return; }
+  const look = async i => { try { return await R.zip.text(R.pkg.spine[i].href); } catch { return ''; } };
+  const plain = h => h.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
+
+  for (let i = 0; i < Math.min(4, n); i++) {
+    const t = await look(i);
+    const m = t.search(PG_START);
+    const labelled = /id=["']pg-header|pg-boilerplate/i.test(t);
+    if (m >= 0 || labelled) {
+      const after = plain(m >= 0 ? t.slice(m) : t).replace(/^[^]*?PROJECT GUTENBERG[^*]*\*{0,3}/i, '');
+      if (after.length < 500) { R.first = Math.min(i + 1, n - 1); }   // the whole section is boilerplate
+      else { R.first = i; R.trimStart = true; R.scale[i] = clamp(after.length / Math.max(1, plain(t).length), 0.05, 1); }
+      break;
+    }
+    if (/PROJECT GUTENBERG/i.test(t) && plain(t).length < 2600) R.first = Math.min(i + 1, n - 1);
+  }
+  for (let i = n - 1; i >= Math.max(0, n - 4); i--) {
+    const t = await look(i);
+    const m = t.search(PG_END);
+    const labelled = /id=["']pg-footer/i.test(t);
+    if (m >= 0 || labelled) {
+      const before = plain(m >= 0 ? t.slice(0, m) : '');
+      if (before.length < 500) { R.last = Math.max(0, i - 1); }       // the whole section is licence
+      else { R.last = i; R.trimEnd = true; R.scale[i] = clamp(before.length / Math.max(1, plain(t).length), 0.05, 1); }
+      break;
+    }
+    if (/START: FULL LICENSE|Section 1\.\s*General Terms of Use/i.test(t)) R.last = Math.max(0, i - 1);
+  }
+  if (R.last < R.first) { R.first = 0; R.last = n - 1; R.trimStart = R.trimEnd = false; R.scale.fill(1); }
+  rebuildWeights();
+  if (R.first > 0 || R.last < n - 1 || R.trimStart || R.trimEnd)
+    console.debug('[shelfmark] readable sections', R.first + '-' + R.last, 'of', n);
+}
+function rebuildWeights() {
+  // Progress spans the readable part only; skipped boilerplate carries no weight,
+  // and a section that is part boilerplate counts only for the part that is kept.
+  const start = startIdx();
+  R.weights = R.pkg.spine.map((s, i) =>
+    (i < start || i > R.last) ? 0 : Math.max(1, Math.round(R.zip.size(s.href) * (R.scale?.[i] ?? 1))));
+  R.total = R.weights.reduce((a, b) => a + b, 0) || 1;
+  R.cumulative = []; let run = 0;
+  for (const w of R.weights) { R.cumulative.push(run); run += w; }
+}
+const startIdx = () => Math.max(R.first, R.book?.start?.idx ?? 0);
+const startPage = () => (R.book?.start && R.book.start.idx >= R.first ? R.book.start.page : 0);
 
 function themeCss() {
   const c = { lamp: ['#221F19', '#D6CBB0', '#D9A85A'], sage: ['#E2E7D7', '#2A3327', '#8A5E22'],
@@ -1059,6 +1169,8 @@ async function renderChapter(idx, opts = {}) {
   }
   for (const s of useDoc.querySelectorAll('script')) s.remove();
 
+  if (trimOn()) trimBoilerplate(useDoc, idx === R.first && R.trimStart, idx === R.last && R.trimEnd);
+
   const style = useDoc.createElement('style');
   style.textContent = themeCss();
   (useDoc.head || useDoc.documentElement).appendChild(style);
@@ -1134,7 +1246,8 @@ function epubFraction() {
     : (() => { const d = $('#page').contentDocument; if (!d) return 0;
         const max = d.body.scrollHeight - d.documentElement.clientHeight;
         return max > 0 ? clamp($('#page').contentWindow.scrollY / max, 0, 1) : 0; })();
-  return clamp((R.cumulative[R.idx] + R.weights[R.idx] * within) / R.total, 0, 1);
+  const base = R.cumulative[startIdx()] || 0;
+  return clamp((R.cumulative[R.idx] + (R.weights[R.idx] || 0) * within - base) / R.total, 0, 1);
 }
 
 async function gotoHref(href) {
@@ -1171,8 +1284,8 @@ async function turn(dir) {
     return;
   }
   const atStart = R.page <= 0, atEnd = R.page >= R.pages - 1;
-  if (dir === 'next' && atEnd && R.idx >= R.pkg.spine.length - 1) { toast('End of the book'); return; }
-  if (dir === 'prev' && atStart && R.idx <= 0) return;
+  if (dir === 'next' && atEnd && R.idx >= R.last) { toast('End of the book'); return; }
+  if (dir === 'prev' && atStart && R.idx <= startIdx()) return;
 
   R.busy = true;
   const el = $('#flip'), animate = animOn();
@@ -1267,9 +1380,10 @@ $('#tap-r').addEventListener('click', () => { closePanels(); turn(R.book?.rtl ? 
 $('#r-range').addEventListener('change', async e => {
   const f = e.target.value / 1000, b = R.book; if (!b) return;
   if (b.kind === 'epub') {
-    const target = f * R.total;
-    let i = R.cumulative.findIndex((c, k) => target < c + R.weights[k]);
-    if (i < 0) i = R.pkg.spine.length - 1;
+    const base = R.cumulative[startIdx()] || 0;
+    const target = base + f * R.total;
+    let i = R.cumulative.findIndex((c, k) => R.weights[k] > 0 && target < c + R.weights[k]);
+    if (i < 0) i = R.last;
     const within = (target - R.cumulative[i]) / R.weights[i];
     setLoading('Jumping…');
     await renderChapter(i, { page: 0 });
@@ -1534,6 +1648,13 @@ $('#r-aa').addEventListener('click', () => togglePanel('#p-aa'));
 
 /* ---------- reader settings ---------- */
 function syncControls() {
+  $$('#r-trim button').forEach(b => b.classList.toggle('on', +b.dataset.x === (trimOn() ? 1 : 0)));
+  const sn = $('#start-note');
+  if (sn) sn.textContent = R.book?.start
+    ? 'Starting from a page you chose.'
+    : (R.first > 0 || R.trimStart) ? 'Publisher front matter is being skipped.' : 'Starting at the beginning of the file.';
+  $('#set-start').style.display = R.book?.kind === 'epub' ? '' : 'none';
+  $('#clear-start').style.display = R.book?.start ? '' : 'none';
   $$('#r-theme button').forEach(b => b.classList.toggle('on', b.dataset.t === R.theme));
   $$('#r-lh button').forEach(b => b.classList.toggle('on', b.dataset.l === String(R.lh)));
   $$('#r-mg button').forEach(b => b.classList.toggle('on', +b.dataset.m === +R.margin));
@@ -1558,6 +1679,29 @@ $$('#r-lh button').forEach(b => b.addEventListener('click', () => { R.lh = b.dat
 $$('#r-mg button').forEach(b => b.addEventListener('click', () => { R.margin = +b.dataset.m; Settings.set('margin', R.margin); relayout(); }));
 $$('#r-col button').forEach(b => b.addEventListener('click', () => { R.cols = b.dataset.c; Settings.set('cols', R.cols); relayout(); }));
 $$('#r-flow button').forEach(b => b.addEventListener('click', () => { R.flow = b.dataset.f; Settings.set('flow', R.flow); relayout(); }));
+$$('#r-trim button').forEach(b => b.addEventListener('click', async () => {
+  await Settings.set('trimFront', +b.dataset.x);
+  if (R.book?.kind !== 'epub') { syncControls(); return; }
+  setLoading('Reflowing…');
+  await computeBounds(R.book);
+  const i = clamp(R.idx, startIdx(), R.last);
+  await renderChapter(i, { page: 0 });
+  setLoading(''); syncControls(); renderToc();
+  toast(+b.dataset.x ? 'Front matter hidden' : 'Showing everything in the file');
+}));
+$('#set-start').addEventListener('click', async () => {
+  const b = R.book; if (!b || b.kind !== 'epub') return;
+  b.start = { idx: R.idx, page: R.page };
+  await DB.put('books', b);
+  rebuildWeights(); updateProgress(); syncControls();
+  toast('This page is now the start of the book');
+});
+$('#clear-start').addEventListener('click', async () => {
+  const b = R.book; if (!b || !b.start) return;
+  b.start = null; await DB.put('books', b);
+  rebuildWeights(); updateProgress(); syncControls();
+  toast('Start reset');
+});
 /* =====================================================================
    SHELF
    ===================================================================== */
@@ -1884,8 +2028,8 @@ $$('#anim-set button').forEach(b => b.addEventListener('click', () => { Settings
 /* ---------- export / import / wipe ---------- */
 $('#export').addEventListener('click', () => {
   const data = { app: 'shelfmark', version: 2, exportedAt: new Date().toISOString(),
-    books: S.books.map(({ id, key, kind, title, author, source, url, pct, pos, pages, rtl, place, bookmarks, finished, addedAt, lastReadAt }) =>
-      ({ id, key, kind, title, author, source, url, pct, pos, pages, rtl, place, bookmarks, finished, addedAt, lastReadAt })),
+    books: S.books.map(({ id, key, kind, title, author, source, url, pct, pos, start, pages, rtl, place, bookmarks, finished, addedAt, lastReadAt }) =>
+      ({ id, key, kind, title, author, source, url, pct, pos, start, pages, rtl, place, bookmarks, finished, addedAt, lastReadAt })),
     loans: S.loans, settings: Settings.cache };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
@@ -1907,7 +2051,7 @@ $('#import').addEventListener('change', async e => {
     for (const b of d.books || []) {
       const have = S.books.find(x => x.id === b.id || x.key === b.key);
       if (have) {
-        Object.assign(have, { pct: b.pct, pos: b.pos, place: b.place, bookmarks: b.bookmarks || [], finished: b.finished, rtl: b.rtl });
+        Object.assign(have, { pct: b.pct, pos: b.pos, start: b.start, place: b.place, bookmarks: b.bookmarks || [], finished: b.finished, rtl: b.rtl });
         await DB.put('books', have);
       } else if (b.url) {
         try { await addRemote({ key: b.key, title: b.title, author: b.author, url: b.url, source: b.source });
