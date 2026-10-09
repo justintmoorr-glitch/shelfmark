@@ -1,87 +1,58 @@
-// Shelfmark service worker: app shell precached, CDN libs + fonts cached on first use.
-// Book files are NOT handled here; they live in IndexedDB.
-const VERSION = 'shelfmark-v4';
+/* Shelfmark service worker.
+   Caches the app shell so the app opens offline. Books live in IndexedDB and are
+   never touched here. Failed responses are never cached — a stored 404 would
+   outlive the problem that caused it. */
+const VERSION = 'shelfmark-v5';
 const SHELL = ['./', './index.html', './manifest.json'];
-const RUNTIME_HOSTS = ['cdn.jsdelivr.net', 'unpkg.com', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+const FONT_HOSTS = ['fonts.googleapis.com', 'fonts.gstatic.com'];
+const LIB_HOSTS = ['cdn.jsdelivr.net', 'unpkg.com', 'cdnjs.cloudflare.com'];
 
 self.addEventListener('install', e => {
-  e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
+  e.waitUntil((async () => {
+    const c = await caches.open(VERSION);
+    await Promise.allSettled(SHELL.map(u => c.add(u)));   // one bad URL must not fail the install
+    await self.skipWaiting();
+  })());
 });
 self.addEventListener('activate', e => {
-  e.waitUntil(caches.keys().then(keys => Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k)))).then(() => self.clients.claim()));
+  e.waitUntil((async () => {
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k => k !== VERSION).map(k => caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
-/* ---------------------------------------------------------------
-   Book parts: serve unpacked EPUB entries out of IndexedDB so epub.js
-   can open a book as a directory and fetch chapters on demand.
-   /_book/<bookId>/<path inside the epub>
-   --------------------------------------------------------------- */
-const TYPES = {
-  xhtml: 'application/xhtml+xml', html: 'text/html', htm: 'text/html', xml: 'application/xml',
-  opf: 'application/oebps-package+xml', ncx: 'application/x-dtbncx+xml',
-  css: 'text/css', js: 'text/javascript', json: 'application/json',
-  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif',
-  svg: 'image/svg+xml', webp: 'image/webp', avif: 'image/avif',
-  otf: 'font/otf', ttf: 'font/ttf', woff: 'font/woff', woff2: 'font/woff2',
-  mp3: 'audio/mpeg', mp4: 'video/mp4', txt: 'text/plain',
-};
-let dbp;
-function db() {
-  // No version argument: never trigger an upgrade from here, just attach to what the page made.
-  dbp = dbp || new Promise((res, rej) => {
-    const r = indexedDB.open('shelfmark');
-    r.onsuccess = () => res(r.result); r.onerror = () => rej(r.error);
-  });
-  return dbp;
-}
-async function servePart(pathname) {
-  const key = decodeURIComponent(pathname.slice('/_book/'.length));
-  // Capability probe: lets the page confirm this sw.js actually has the part route.
-  if (key === '__ping') return new Response('shelfmark-parts-ok', { status: 200, headers: { 'Content-Type': 'text/plain', 'Cache-Control': 'no-store' } });
-  try {
-    const d = await db();
-    if (!d.objectStoreNames.contains('parts')) return new Response('no parts store', { status: 404 });
-    const rec = await new Promise((res, rej) => {
-      const rq = d.transaction('parts', 'readonly').objectStore('parts').get(key);
-      rq.onsuccess = () => res(rq.result); rq.onerror = () => rej(rq.error);
-    });
-    if (!rec) return new Response('not found: ' + key, { status: 404 });
-    const ext = (key.split('.').pop() || '').toLowerCase();
-    return new Response(rec.blob, { status: 200, headers: {
-      'Content-Type': TYPES[ext] || rec.blob.type || 'application/octet-stream',
-      'Cache-Control': 'no-store',
-    }});
-  } catch (err) {
-    return new Response('part lookup failed: ' + err, { status: 500 });
-  }
-}
-
 self.addEventListener('fetch', e => {
-  const url = new URL(e.request.url);
   if (e.request.method !== 'GET') return;
+  const url = new URL(e.request.url);
+  if (url.pathname.startsWith('/api/')) return;                       // never cache API calls
+  if (url.hostname.endsWith('gutendex.com') || url.hostname.endsWith('openlibrary.org')) return;
 
-  if (url.origin === self.location.origin && url.pathname.startsWith('/_book/')) {
-    e.respondWith(servePart(url.pathname));
-    return;
-  }
-  // Never cache API calls or book downloads
-  if (url.pathname.startsWith('/api/') || url.hostname.endsWith('gutendex.com') || url.hostname.endsWith('openlibrary.org')) return;
-
-  // App shell: network first, fall back to cache (so deploys show up, but offline still works)
   if (url.origin === self.location.origin) {
-    e.respondWith(fetch(e.request).then(r => { if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); } return r; })
-      .catch(() => caches.match(e.request).then(r => r || caches.match('./index.html'))));
+    // App shell: network first so deploys land, cache as the offline fallback.
+    e.respondWith((async () => {
+      try {
+        const r = await fetch(e.request);
+        if (r.ok) { const c = await caches.open(VERSION); c.put(e.request, r.clone()); }
+        return r;
+      } catch {
+        return (await caches.match(e.request)) || (await caches.match('./index.html')) ||
+          new Response('Offline', { status: 503 });
+      }
+    })());
     return;
   }
-  // Libraries and fonts: cache first
-  if (RUNTIME_HOSTS.includes(url.hostname)) {
-    e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request).then(r => {
-      // Only cache a good response; caching a 404 would make a bad URL permanent.
-      if (r.ok || r.type === 'opaque') { const copy = r.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); }
+  if (FONT_HOSTS.includes(url.hostname) || LIB_HOSTS.includes(url.hostname)) {
+    e.respondWith((async () => {
+      const hit = await caches.match(e.request);
+      if (hit) return hit;
+      const r = await fetch(e.request);
+      if (r.ok || r.type === 'opaque') { const c = await caches.open(VERSION); c.put(e.request, r.clone()); }
       return r;
-    })));
+    })());
   }
 });
 self.addEventListener('notificationclick', e => {
   e.notification.close();
-  e.waitUntil(self.clients.matchAll({ type: 'window' }).then(list => list.length ? list[0].focus() : self.clients.openWindow('./')));
+  e.waitUntil(self.clients.matchAll({ type: 'window' })
+    .then(list => list.length ? list[0].focus() : self.clients.openWindow('./')));
 });

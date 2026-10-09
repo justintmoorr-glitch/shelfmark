@@ -11,102 +11,41 @@
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%2325281F'/%3E%3Crect x='18' y='12' width='28' height='40' rx='2' fill='%23D9A85A'/%3E%3Crect x='36' y='12' width='6' height='24' fill='%238FBF8F'/%3E%3C/svg%3E">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-
-<script>
-/* Library loader.
-   Each library is tried across several CDNs in order, because a single hardcoded
-   URL is a single point of failure — and cdnjs does not carry epub.js 0.3.x at all.
-   JSZip must land before epub.js, which uses it for archived books. */
-window.__libStatus = { jszip: null, epub: null, pdf: null };
-window.__libs = (async function () {
-  const load = src => new Promise((res, rej) => {
-    const el = document.createElement('script');
-    el.src = src; el.async = false;
-    el.onload = () => res(src);
-    el.onerror = () => rej(new Error(src));
-    document.head.appendChild(el);
-  });
-  async function first(key, present, urls) {
-    if (present()) { window.__libStatus[key] = 'already present'; return true; }
-    for (const u of urls) {
-      try {
-        await load(u);
-        if (present()) { window.__libStatus[key] = new URL(u).host; console.debug('[shelfmark] ' + key + ' ←', u); return true; }
-        console.warn('[shelfmark] ' + u + ' loaded but did not define ' + key);
-      } catch (e) { console.warn('[shelfmark] ' + key + ' not available at ' + e.message); }
-    }
-    window.__libStatus[key] = 'FAILED';
-    console.error('[shelfmark] could not load ' + key + ' from any CDN');
-    return false;
-  }
-  await first('jszip', () => !!window.JSZip, [
-    'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
-    'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
-  ]);
-  await first('epub', () => !!window.ePub, [
-    'https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js',
-    'https://unpkg.com/epubjs@0.3.93/dist/epub.min.js',
-    'https://cdn.jsdelivr.net/npm/epubjs@0.3/dist/epub.min.js',
-  ]);
-  const pdfUrls = [
-    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
-    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js',
-    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
-  ];
-  await first('pdf', () => !!window.pdfjsLib, pdfUrls);
-  if (window.pdfjsLib) {
-    // The worker has to come from the same build that loaded.
-    const host = window.__libStatus.pdf;
-    const match = pdfUrls.find(u => new URL(u).host === host) || pdfUrls[0];
-    window.pdfjsLib.GlobalWorkerOptions.workerSrc = match.replace('pdf.min.js', 'pdf.worker.min.js');
-  }
-  return window.__libStatus;
-})();
-</script>
+<link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=Atkinson+Hyperlegible:wght@400;700&display=swap" rel="stylesheet">
 <style>
+/* Shelfmark has NO external JavaScript. Fonts are the only remote asset, and the
+   stacks below mean a blocked CDN costs appearance, never function. */
 :root{
-  /* Night: the reading-lamp palette. Dark moss walls, parchment text, amber lamp light. Almost no blue. */
   --bg:#25281F; --surface:#2E3227; --raised:#3A3F31; --line:#474D3D;
   --text:#DDD5BE; --muted:#9B9A86; --ink:#D9A85A; --ink-deep:#B8883E;
   --stamp:#D46E62; --ok:#8FBF8F; --shadow:0 10px 30px rgba(0,0,0,.35);
   --radius:10px; --rail:220px;
-  --ui:"Atkinson Hyperlegible",system-ui,sans-serif; --serif:"Crimson Pro",Georgia,serif;
+  --ui:"Atkinson Hyperlegible",system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;
+  --serif:"Crimson Pro",Georgia,"Iowan Old Style","Times New Roman",serif;
 }
 [data-theme="day"]{
-  /* Day: sage reading room. Green-tinted paper, walnut ink. */
   --bg:#E3E7D8; --surface:#F0F2E9; --raised:#D6DBC8; --line:#C2C9B3;
   --text:#2A3026; --muted:#61685A; --ink:#8A5E22; --ink-deep:#6E4A18;
   --stamp:#B14A3F; --ok:#3B7D54; --shadow:0 10px 30px rgba(40,50,30,.12);
 }
 *{box-sizing:border-box}
 html,body{height:100%;margin:0}
-body{
-  background:var(--bg); color:var(--text);
-  font-family:var(--ui); font-size:16px; line-height:1.5;
-  -webkit-font-smoothing:antialiased; overscroll-behavior:none;
-}
+body{background:var(--bg);color:var(--text);font-family:var(--ui);font-size:16px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;overscroll-behavior:none}
 button,input,select,textarea{font:inherit;color:inherit}
 button{cursor:pointer;border:0;background:none;padding:0}
 a{color:var(--ink)}
 :focus-visible{outline:2px solid var(--ink);outline-offset:2px}
 @media (prefers-reduced-motion:reduce){*{transition:none!important;animation:none!important}}
 
-/* ---------- shell ---------- */
 #app{display:grid;grid-template-columns:var(--rail) 1fr;height:100%;height:100dvh}
-nav.rail{
-  background:var(--surface); border-right:1px solid var(--line);
-  display:flex; flex-direction:column; padding:22px 14px 14px;
-  padding-top:calc(22px + env(safe-area-inset-top));
-}
-.brand{padding:0 10px 22px;font-family:var(--serif);font-size:26px;font-weight:500;letter-spacing:-.01em;display:flex;align-items:center;gap:10px}
+nav.rail{background:var(--surface);border-right:1px solid var(--line);display:flex;flex-direction:column;
+  padding:22px 14px 14px;padding-top:calc(22px + env(safe-area-inset-top))}
+.brand{padding:0 10px 22px;font-family:var(--serif);font-size:26px;font-weight:500;display:flex;align-items:center;gap:10px}
 .brand .mark{width:22px;height:28px;border-radius:2px;background:var(--ink);position:relative;flex:none}
 .brand .mark::after{content:"";position:absolute;right:5px;top:0;width:5px;height:17px;background:var(--ok)}
-.rail button.tab{
-  display:flex;align-items:center;justify-content:space-between;width:100%;
-  padding:11px 12px;border-radius:8px;font-size:17px;color:var(--muted);text-align:left;
-}
+.rail button.tab{display:flex;align-items:center;justify-content:space-between;width:100%;padding:11px 12px;
+  border-radius:8px;font-size:17px;color:var(--muted);text-align:left}
 .rail button.tab.active{background:var(--raised);color:var(--text)}
 .rail button.tab .count{font-size:13px;color:var(--muted);background:var(--bg);padding:1px 8px;border-radius:12px}
 .rail button.tab .count.warn{background:var(--stamp);color:#fff}
@@ -115,138 +54,102 @@ nav.rail{
 main{overflow:auto;padding:28px 36px 60px;-webkit-overflow-scrolling:touch}
 main>section{display:none;max-width:1100px}
 main>section.active{display:block}
-h1{font-family:var(--serif);font-size:36px;font-weight:500;margin:0 0 6px;letter-spacing:-.005em;line-height:1.1}
+h1{font-family:var(--serif);font-size:36px;font-weight:500;margin:0 0 6px;line-height:1.1}
 h2{font-family:var(--serif);font-size:24px;font-weight:500;margin:28px 0 12px}
-p.lead{color:var(--muted);margin:0 0 20px;max-width:60ch}
-
+p.lead{color:var(--muted);margin:0 0 20px;max-width:62ch}
+.note{color:var(--muted);font-size:14px}
 @media (max-width:760px){
   #app{grid-template-columns:1fr;grid-template-rows:1fr auto}
-  nav.rail{order:2;flex-direction:row;border-right:0;border-top:1px solid var(--line);padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
+  nav.rail{order:2;flex-direction:row;border-right:0;border-top:1px solid var(--line);
+    padding:8px 8px calc(8px + env(safe-area-inset-bottom))}
   .brand,.rail .spacer,.rail .foot{display:none}
   .rail button.tab{flex:1;justify-content:center;gap:8px;font-size:15px;padding:10px 6px}
   main{padding:20px 18px 40px}
 }
 
-/* ---------- controls ---------- */
 .row{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
 .field{display:flex;flex-direction:column;gap:5px;min-width:0}
 .field label{font-size:14px;color:var(--muted)}
-input[type=text],input[type=search],input[type=date],input[type=number],input[type=url],select,textarea{
-  background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px 13px;min-height:46px;
-  width:100%;
-}
+input[type=text],input[type=search],input[type=date],input[type=url],select,textarea{
+  background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:11px 13px;min-height:46px;width:100%}
 input::placeholder{color:var(--muted)}
-.btn{
-  background:var(--raised);border:1px solid var(--line);padding:11px 16px;border-radius:8px;min-height:46px;
-  display:inline-flex;align-items:center;gap:8px;white-space:nowrap;
-}
+.btn{background:var(--raised);border:1px solid var(--line);padding:11px 16px;border-radius:8px;min-height:46px;
+  display:inline-flex;align-items:center;gap:8px;white-space:nowrap}
 .btn.primary{background:var(--ink);color:#1E1A10;border-color:transparent}
 [data-theme="day"] .btn.primary{color:#fff}
 .btn.quiet{background:none;border-color:transparent;color:var(--muted)}
 .btn.danger{color:var(--stamp)}
 .btn:disabled{opacity:.5;cursor:default}
 .search{display:grid;grid-template-columns:1fr auto;gap:10px;margin:16px 0}
-.note{color:var(--muted);font-size:14px}
-.empty{
-  border:1px dashed var(--line);border-radius:var(--radius);padding:36px 24px;color:var(--muted);
-  text-align:center;max-width:56ch;
-}
-.bootbar{
-  position:fixed;left:0;right:0;top:0;z-index:60;display:none;gap:12px;align-items:flex-start;
-  background:var(--stamp);color:#fff;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));
-  font-size:15px;line-height:1.4;box-shadow:var(--shadow);
-}
-.bootbar.show{display:flex}
-.bootbar span{flex:1}
-.bootbar button{background:rgba(0,0,0,.25);color:#fff;border-radius:6px;padding:6px 12px;min-height:34px;white-space:nowrap}
-pre.diag{
-  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;
-  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;
-  white-space:pre-wrap;word-break:break-word;margin:12px 0 0;display:none;
-}
-pre.diag.show{display:block}
-.toast{
-  position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);
-  background:var(--raised);border:1px solid var(--line);padding:12px 18px;border-radius:10px;box-shadow:var(--shadow);
-  z-index:50;opacity:0;pointer-events:none;transition:opacity .2s;
-}
-.toast.show{opacity:1}
 .segment{display:inline-flex;background:var(--surface);border:1px solid var(--line);border-radius:8px;padding:3px}
 .segment button{padding:7px 12px;border-radius:6px;color:var(--muted);min-height:36px}
 .segment button.on{background:var(--raised);color:var(--text)}
+.empty{border:1px dashed var(--line);border-radius:var(--radius);padding:36px 24px;color:var(--muted);
+  text-align:center;max-width:58ch}
+.upload-row{border:1px dashed var(--line);border-radius:var(--radius);padding:16px;display:flex;gap:12px;
+  align-items:center;flex-wrap:wrap;margin:14px 0 6px}
+.upload-row.drag{border-color:var(--ink);background:var(--surface)}
+.upload-row .note{flex:1;min-width:220px}
 
-/* ---------- books ---------- */
 .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:22px 18px}
 .book{display:flex;flex-direction:column;gap:8px;text-align:left}
-.cover{
-  position:relative;aspect-ratio:2/3;border-radius:3px 6px 6px 3px;background:var(--raised);
-  overflow:hidden;box-shadow:var(--shadow);
-}
+.cover{position:relative;aspect-ratio:2/3;border-radius:3px 6px 6px 3px;background:var(--raised);
+  overflow:hidden;box-shadow:var(--shadow);width:100%;display:block}
 .cover img{width:100%;height:100%;object-fit:cover;display:block}
 .cover .spine{position:absolute;left:0;top:0;bottom:0;width:6px;background:rgba(0,0,0,.25)}
-.cover .ribbon{
-  position:absolute;right:12px;top:-2px;width:14px;height:0;background:var(--stamp);
-  clip-path:polygon(0 0,100% 0,100% 100%,50% 85%,0 100%);transition:height .3s;
-}
+.cover .ribbon{position:absolute;right:12px;top:-2px;width:14px;background:var(--stamp);
+  clip-path:polygon(0 0,100% 0,100% 100%,50% 85%,0 100%)}
 .cover .ribbon.done{background:var(--ok)}
-.cover .placeholder{position:absolute;inset:0;padding:14px 12px 12px 18px;display:flex;flex-direction:column;justify-content:flex-end;gap:4px}
-.cover .placeholder b{font-family:var(--serif);font-weight:500;font-size:16px;line-height:1.2}
-.cover .placeholder span{font-size:12px;color:var(--muted)}
-.book .t{font-family:var(--serif);font-weight:500;font-size:17px;line-height:1.3;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.cover .ph{position:absolute;inset:0;padding:14px 12px 12px 18px;display:flex;flex-direction:column;
+  justify-content:flex-end;gap:4px;text-align:left}
+.cover .ph b{font-family:var(--serif);font-weight:500;font-size:16px;line-height:1.2;color:var(--text)}
+.cover .ph span{font-size:12px;color:var(--muted)}
+.cover .kind{position:absolute;left:8px;top:8px;font-size:11px;padding:2px 7px;border-radius:10px;
+  background:rgba(0,0,0,.6);color:#fff}
+.cover .placebadge{position:absolute;left:0;right:0;bottom:0;font-size:11px;padding:4px 8px;
+  background:color-mix(in srgb,var(--ink) 85%,#000);color:#1E1A10}
+.book .t{font-family:var(--serif);font-weight:500;font-size:17px;line-height:1.3;
+  display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
 .book .a{font-size:13px;color:var(--muted)}
 .book .pct{font-size:13px;color:var(--ink)}
-.book .actions{display:flex;gap:6px;margin-top:2px}
-.book .actions .btn{min-height:36px;padding:6px 10px;font-size:14px}
+.book .place{font-size:12px;color:var(--muted)}
+.book .actions{display:flex;gap:6px;flex-wrap:wrap}
+.book .actions .btn{min-height:34px;padding:5px 10px;font-size:13px}
 
-/* discover list */
 .results{display:grid;gap:12px;margin-top:8px}
-.hit{
-  display:grid;grid-template-columns:64px 1fr auto;gap:16px;align-items:center;
-  background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px;
-}
-.hit .cover{aspect-ratio:2/3;box-shadow:none;width:64px}
+.hit{display:grid;grid-template-columns:64px 1fr auto;gap:16px;align-items:center;background:var(--surface);
+  border:1px solid var(--line);border-radius:var(--radius);padding:12px 14px}
+.hit .thumb{width:64px;aspect-ratio:2/3;border-radius:3px;background:var(--raised);overflow:hidden}
+.hit .thumb img{width:100%;height:100%;object-fit:cover}
 .hit .t{font-family:var(--serif);font-weight:500;font-size:20px;line-height:1.25}
 .hit .a{color:var(--muted);font-size:14px}
 .hit .why{font-size:14px;margin-top:4px;max-width:60ch}
 .hit .meta{font-size:13px;color:var(--muted);margin-top:4px}
 @media (max-width:560px){.hit{grid-template-columns:52px 1fr}.hit .side{grid-column:1/-1}}
-
 .rec-box{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:12px}
-.rec-box textarea{min-height:64px;resize:vertical}
+.rec-box textarea{min-height:64px;resize:vertical;margin-top:10px}
 
-/* ---------- loans: the date-due slip ---------- */
 .loans{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:18px}
-.slip{
-  background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:18px 18px 14px;
-  position:relative;overflow:hidden;
-  background-image:repeating-linear-gradient(to bottom,transparent 0 31px,var(--line) 31px 32px);
-  background-position:0 58px;
-}
+.slip{background:var(--surface);border:1px solid var(--line);border-radius:4px;padding:18px 18px 14px;
+  position:relative;overflow:hidden}
 .slip::before{content:"";position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--ink)}
 .slip.overdue::before{background:var(--stamp)}
 .slip.returned{opacity:.6}
-.slip .head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;background:var(--surface);padding-bottom:6px}
+.slip .head{display:flex;justify-content:space-between;gap:12px;align-items:flex-start}
 .slip .title{font-family:var(--serif);font-weight:500;font-size:21px;line-height:1.2}
 .slip .src{font-size:13px;color:var(--muted)}
-.slip .dates{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:10px 0 8px}
-.slip .d{background:var(--surface);padding:4px 0}
+.slip .dates{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:12px 0 8px}
 .slip .d small{display:block;color:var(--muted);font-size:13px}
 .slip .d b{font-weight:500;font-size:17px}
-.stamp{
-  display:inline-block;border:2px solid var(--ink);color:var(--ink);border-radius:4px;padding:2px 10px;
-  font-weight:600;font-size:14px;letter-spacing:.02em;transform:rotate(-4deg);background:var(--surface);
-}
-.stamp.due-soon{border-color:var(--stamp);color:var(--stamp)}
-.stamp.overdue{border-color:var(--stamp);color:var(--stamp);background:color-mix(in srgb,var(--stamp) 12%,var(--surface))}
+.stamp{display:inline-block;border:2px solid var(--ink);color:var(--ink);border-radius:4px;padding:2px 10px;
+  font-weight:700;font-size:13px;transform:rotate(-4deg);white-space:nowrap}
+.stamp.due-soon,.stamp.overdue{border-color:var(--stamp);color:var(--stamp)}
 .stamp.returned{border-color:var(--ok);color:var(--ok)}
-.slip .foot{display:flex;gap:6px;flex-wrap:wrap;background:var(--surface);padding-top:6px}
-.slip .foot .btn{min-height:36px;padding:6px 10px;font-size:14px}
+.slip .foot{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.slip .foot .btn{min-height:34px;padding:5px 10px;font-size:13px}
 
-/* ---------- modal ---------- */
-dialog{
-  background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;
-  width:min(560px,calc(100vw - 32px));box-shadow:var(--shadow);
-}
+dialog{background:var(--surface);color:var(--text);border:1px solid var(--line);border-radius:14px;padding:0;
+  width:min(560px,calc(100vw - 32px));box-shadow:var(--shadow)}
 dialog::backdrop{background:rgba(0,0,0,.5)}
 dialog form{padding:22px}
 dialog h3{margin:0 0 16px;font-family:var(--serif);font-weight:500;font-size:24px}
@@ -257,96 +160,87 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
 .ol-hits button{display:flex;gap:10px;align-items:center;text-align:left;padding:6px 8px;border-radius:6px;width:100%}
 .ol-hits button:hover{background:var(--raised)}
 .ol-hits img{width:28px;height:42px;object-fit:cover;border-radius:2px;background:var(--raised)}
-.ol-hits span{font-size:14px}
 
-/* ---------- reader ---------- */
-#reader{
-  position:fixed;inset:0;background:var(--rbg,var(--bg));color:var(--rtext,var(--text));z-index:40;
-  display:none;flex-direction:column;
-}
+/* ---------------- reader ---------------- */
+#reader{position:fixed;inset:0;background:var(--rbg,var(--bg));color:var(--rtext,var(--text));z-index:40;
+  display:none;flex-direction:column}
 #reader.open{display:flex}
-#reader .bar{
-  display:flex;align-items:center;gap:8px;padding:8px 12px;min-height:54px;
+#reader[data-rtheme="lamp"]{--rbg:#221F19;--rtext:#D6CBB0}
+#reader[data-rtheme="sage"]{--rbg:#E2E7D7;--rtext:#2A3327}
+#reader[data-rtheme="amber"]{--rbg:#F2E3C4;--rtext:#46361F}
+#reader .bar{display:flex;align-items:center;gap:6px;padding:8px 12px;min-height:54px;
   border-bottom:1px solid color-mix(in srgb,currentColor 15%,transparent);
-  padding-top:calc(8px + env(safe-area-inset-top));
-}
-#reader .bar .title{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-size:15px;opacity:.85}
-#reader .bar .chapter{font-size:13px;opacity:.6;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
-#reader .ibtn{width:44px;height:44px;border-radius:8px;display:inline-flex;align-items:center;justify-content:center;opacity:.85}
+  padding-top:calc(8px + env(safe-area-inset-top))}
+#reader .bar .title{flex:1;min-width:0;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;font-size:15px;opacity:.85}
+#reader .bar .chapter{font-size:13px;opacity:.6}
+#reader .ibtn{width:44px;height:44px;border-radius:8px;display:inline-flex;align-items:center;
+  justify-content:center;opacity:.85;flex:none}
 #reader .ibtn:hover{background:color-mix(in srgb,currentColor 10%,transparent)}
-#reader .ibtn.on{color:var(--stamp)}
-#stage{flex:1;position:relative;min-height:0}
-#stage{perspective:1600px}
-#view{position:absolute;inset:0 0 0 0;margin:0 auto;max-width:1200px;transform-style:preserve-3d;backface-visibility:hidden}
-#view.turn-out{transition:transform .22s cubic-bezier(.4,0,.8,.4),filter .22s}
-#view.turn-in{transition:transform .2s cubic-bezier(.2,.6,.3,1),filter .2s}
-.tap{position:absolute;top:0;bottom:0;width:18%;z-index:2}
-/* comic / manga reader */
-#comic{position:absolute;inset:0;display:none;align-items:center;justify-content:center;overflow:auto;transform-style:preserve-3d}
-#reader.comic #view{display:none}
-#reader.comic #comic{display:flex}
-#comic .spread{display:flex;align-items:center;justify-content:center;gap:0;height:100%;width:100%;position:relative}
-#comic .spread img{display:block;user-select:none;-webkit-user-drag:none;background:#000}
+#reader .ibtn.on{color:var(--ink)}
+#stage{flex:1;position:relative;min-height:0;perspective:1600px;overflow:hidden}
+#flip{position:absolute;inset:0;transform-style:preserve-3d;backface-visibility:hidden}
+#flip.out{transition:transform .2s cubic-bezier(.4,0,.8,.4),filter .2s}
+#flip.in{transition:transform .2s cubic-bezier(.2,.6,.3,1),filter .2s}
+#page{position:absolute;inset:0;width:100%;height:100%;border:0;display:block;background:transparent}
+#comic{position:absolute;inset:0;display:none;align-items:center;justify-content:center;overflow:auto}
+#reader.paged #page{display:none}
+#reader.paged #comic{display:flex}
+#comic .spread{display:flex;align-items:center;justify-content:center;height:100%;width:100%}
 #comic.fit-h .spread img{max-height:100%;max-width:100%;object-fit:contain}
 #comic.fit-h .spread.double img{max-width:50%}
 #comic.fit-w{align-items:flex-start}
 #comic.fit-w .spread{height:auto;flex-direction:column}
 #comic.fit-w .spread img{width:100%;height:auto}
-#comic .leaf{
-  position:absolute;top:0;bottom:0;display:flex;align-items:center;z-index:6;pointer-events:none;
-  transform-style:preserve-3d;backface-visibility:hidden;will-change:transform;
-}
-#comic .leaf img{max-height:100%;max-width:100%;object-fit:contain;box-shadow:0 0 40px rgba(0,0,0,.5)}
-#comic .leaf::after{content:"";position:absolute;inset:0;background:linear-gradient(to right,rgba(0,0,0,0),rgba(0,0,0,.45));opacity:0;transition:opacity .35s}
-#comic .leaf.flip::after{opacity:1}
-#comic .leaf.hinge-l{left:0;justify-content:flex-start;transform-origin:left center}
-#comic .leaf.hinge-r{right:0;justify-content:flex-end;transform-origin:right center}
-#comic .leaf.flip{transition:transform .42s cubic-bezier(.45,.05,.55,.95)}
-#comic .leaf.hinge-l.flip{transform:rotateY(-180deg)}
-#comic .leaf.hinge-r.flip{transform:rotateY(180deg)}
-#comic .leaf.hinge-r::after{background:linear-gradient(to left,rgba(0,0,0,0),rgba(0,0,0,.45))}
-.upload-row{border:1px dashed var(--line);border-radius:var(--radius);padding:14px 16px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:14px 0 6px}
-.upload-row.drag{border-color:var(--ink);background:var(--surface)}
-.upload-row .note{flex:1;min-width:200px}
-.book .kind{position:absolute;left:10px;bottom:8px;font-size:11px;padding:1px 7px;border-radius:10px;background:rgba(0,0,0,.55);color:#fff}
+#pdfnative{position:absolute;inset:0;width:100%;height:100%;border:0;display:none;background:#fff}
+#reader.native #flip,#reader.native #comic{display:none}
+#reader.native #pdfnative{display:block}
+.tap{position:absolute;top:0;bottom:0;width:16%;z-index:3}
 .tap.l{left:0}.tap.r{right:0}
-#reader .foot{
-  display:flex;align-items:center;gap:14px;padding:8px 16px;font-size:13px;opacity:.85;
+#reader .foot{display:flex;align-items:center;gap:14px;padding:8px 16px;font-size:13px;opacity:.85;
   border-top:1px solid color-mix(in srgb,currentColor 15%,transparent);
-  padding-bottom:calc(8px + env(safe-area-inset-bottom));
-}
-#reader .foot input[type=range]{flex:1;accent-color:var(--ink)}
-.panel{
-  position:absolute;top:0;right:0;bottom:0;width:min(360px,90vw);z-index:5;
-  background:var(--rbg,var(--surface));color:var(--rtext,var(--text));border-left:1px solid color-mix(in srgb,currentColor 15%,transparent);
-  padding:18px;overflow:auto;display:none;box-shadow:var(--shadow);
-}
+  padding-bottom:calc(8px + env(safe-area-inset-bottom))}
+#reader .foot input[type=range]{flex:1;accent-color:var(--ink);min-width:60px}
+.panel{position:absolute;top:0;right:0;bottom:0;width:min(360px,90vw);z-index:6;
+  background:var(--rbg,var(--surface));color:var(--rtext,var(--text));
+  border-left:1px solid color-mix(in srgb,currentColor 15%,transparent);
+  padding:18px;overflow:auto;display:none;box-shadow:var(--shadow)}
 .panel.open{display:block}
 .panel h4{margin:0 0 12px;font-family:var(--serif);font-weight:500;font-size:20px}
-.panel .item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 6px;border-radius:6px;width:100%;text-align:left}
+.panel .item{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:9px 6px;
+  border-radius:6px;width:100%;text-align:left}
 .panel .item:hover{background:color-mix(in srgb,currentColor 8%,transparent)}
-.panel .item small{opacity:.6}
-.panel .item.sub{padding-left:22px;font-size:14px}
-.panel .opt{display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-bottom:1px solid color-mix(in srgb,currentColor 12%,transparent)}
+.panel .item small{opacity:.6;flex:none}
+.panel .item.d1{padding-left:22px;font-size:14px}
+.panel .item.d2{padding-left:38px;font-size:14px;opacity:.85}
+.panel .opt{display:flex;justify-content:space-between;align-items:center;gap:10px;padding:10px 0;
+  border-bottom:1px solid color-mix(in srgb,currentColor 12%,transparent)}
 .panel .opt .segment{background:transparent;border-color:color-mix(in srgb,currentColor 25%,transparent)}
 .panel .opt .segment button{color:inherit;opacity:.6}
 .panel .opt .segment button.on{opacity:1;background:color-mix(in srgb,currentColor 12%,transparent)}
-#reader[data-rtheme="lamp"]{--rbg:#221F19;--rtext:#D6CBB0}
-#reader[data-rtheme="sage"]{--rbg:#E2E7D7;--rtext:#2A3327}
-#reader[data-rtheme="amber"]{--rbg:#F2E3C4;--rtext:#46361F}
-/* saved place */
-.place-chip{
-  position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:7;display:none;
-  background:var(--rbg,var(--surface));color:var(--rtext,var(--text));border:1px solid color-mix(in srgb,currentColor 25%,transparent);
-  border-radius:20px;padding:8px 8px 8px 14px;box-shadow:var(--shadow);font-size:14px;align-items:center;gap:8px;
-}
+.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  opacity:.65;pointer-events:none;z-index:4;text-align:center;padding:20px}
+.place-chip{position:absolute;left:50%;top:14px;transform:translateX(-50%);z-index:7;display:none;
+  background:var(--rbg,var(--surface));color:var(--rtext,var(--text));
+  border:1px solid color-mix(in srgb,currentColor 25%,transparent);border-radius:20px;
+  padding:8px 8px 8px 14px;box-shadow:var(--shadow);font-size:14px;align-items:center;gap:8px}
 .place-chip.show{display:flex}
 .place-chip button{background:var(--ink);color:#1E1A10;border-radius:14px;padding:5px 12px;min-height:30px}
 .place-chip .x{background:none;color:inherit;opacity:.6;padding:4px 8px}
-.book .place{font-size:13px;color:var(--muted)}
-.book .place b{color:var(--ink);font-weight:400}
-.cover .placebadge{position:absolute;left:0;bottom:0;right:0;font-size:11px;padding:4px 8px 4px 14px;background:color-mix(in srgb,var(--ink) 85%,#000);color:#1E1A10}
-.loading{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;opacity:.6;pointer-events:none}
+
+.bootbar{position:fixed;left:0;right:0;top:0;z-index:60;display:none;gap:12px;align-items:flex-start;
+  background:var(--stamp);color:#fff;padding:12px 16px;padding-top:calc(12px + env(safe-area-inset-top));
+  font-size:15px;line-height:1.4;box-shadow:var(--shadow)}
+.bootbar.show{display:flex}
+.bootbar span{flex:1}
+.bootbar button{background:rgba(0,0,0,.25);color:#fff;border-radius:6px;padding:6px 12px;min-height:34px}
+pre.diag{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);padding:14px;
+  font-family:ui-monospace,SFMono-Regular,Menlo,monospace;font-size:13px;line-height:1.5;
+  white-space:pre-wrap;word-break:break-word;margin:12px 0 0;display:none}
+pre.diag.show{display:block}
+.toast{position:fixed;left:50%;bottom:calc(24px + env(safe-area-inset-bottom));transform:translateX(-50%);
+  background:var(--raised);border:1px solid var(--line);padding:12px 18px;border-radius:10px;
+  box-shadow:var(--shadow);z-index:50;opacity:0;pointer-events:none;transition:opacity .2s;max-width:80vw}
+.toast.show{opacity:1}
 </style>
 </head>
 <body>
@@ -362,42 +256,43 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
   </nav>
 
   <main>
-    <!-- ===== DISCOVER ===== -->
     <section id="tab-discover" class="active">
       <h1>Discover</h1>
-      <p class="lead">Upload EPUBs and CBZ comics from this device, search Project Gutenberg, or paste a link to any DRM-free EPUB. Everything is stored on this device and opens offline.</p>
+      <p class="lead">Add books from this device, search Project Gutenberg, or paste a link to any DRM-free file. Everything is stored on this device and opens offline.</p>
+
+      <div class="upload-row" id="drop">
+        <label class="btn primary">Add from this device
+          <input type="file" id="upload" multiple hidden
+                 accept=".epub,.cbz,.cbr,.zip,.pdf,application/epub+zip,application/zip,application/pdf">
+        </label>
+        <span class="note">EPUB books, PDFs, and CBZ comics or manga. Pick several at once — the files are copied in, so you can delete the originals.</span>
+      </div>
 
       <div class="rec-box">
         <div class="row" style="justify-content:space-between">
           <b>What should I read next?</b>
           <button class="btn" id="rec-go">Ask for suggestions</button>
         </div>
-        <textarea id="rec-mood" placeholder="Optional: a mood or constraint, e.g. short, funny, something I can finish on a night shift"></textarea>
-        <div class="note" id="rec-note">Suggestions are based on your shelf and reading progress. Only free public-domain books are suggested.</div>
+        <textarea id="rec-mood" placeholder="Optional: a mood or constraint, e.g. short, funny, something I can finish in a few sittings"></textarea>
+        <div class="note" id="rec-note">Based on your shelf and progress. Only free public-domain books are suggested.</div>
         <div class="results" id="rec-results"></div>
-      </div>
-
-      <div class="upload-row" id="drop">
-        <label class="btn primary">Upload from this device <input type="file" id="upload" accept=".epub,.cbz,.zip,.pdf,application/epub+zip,application/zip,application/x-cbz,application/pdf" multiple hidden></label>
-        <span class="note">EPUB books, PDFs, and CBZ comics or manga. Pick several at once. Files are copied into the app, so the originals can be deleted afterwards.</span>
       </div>
 
       <div class="search">
         <input type="search" id="q" placeholder="Title or author on Project Gutenberg">
         <button class="btn primary" id="q-go">Search</button>
       </div>
-      <div class="row" style="margin-bottom:6px">
-        <input type="url" id="url-in" placeholder="…or paste an EPUB link (Standard Ebooks, Gutenberg)" style="flex:1;min-width:240px">
+      <div class="row">
+        <input type="url" id="url-in" placeholder="…or paste a direct EPUB / PDF / CBZ link" style="flex:1;min-width:240px">
         <button class="btn" id="url-go">Add from link</button>
         <a class="note" href="https://standardebooks.org/ebooks" target="_blank" rel="noopener">Browse Standard Ebooks</a>
       </div>
       <div class="results" id="results"></div>
     </section>
 
-    <!-- ===== SHELF ===== -->
     <section id="tab-shelf">
       <div class="row" style="justify-content:space-between;align-items:flex-end">
-        <div><h1>Shelf</h1><p class="lead" style="margin:0">Your downloaded books. Tap a cover to read.</p></div>
+        <div><h1>Shelf</h1><p class="lead" style="margin:0">Tap a cover to read.</p></div>
         <div class="segment" id="shelf-filter">
           <button class="on" data-f="all">All</button>
           <button data-f="reading">Reading</button>
@@ -405,13 +300,12 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
         </div>
       </div>
       <div class="grid" id="shelf" style="margin-top:22px"></div>
-      <div class="empty" id="shelf-empty" style="margin-top:22px">Nothing here yet. Find something in Discover and it will land on this shelf.</div>
+      <div class="empty" id="shelf-empty" style="margin-top:22px">Nothing here yet. Add a book from Discover and it lands on this shelf.</div>
     </section>
 
-    <!-- ===== LOANS ===== -->
     <section id="tab-loans">
       <div class="row" style="justify-content:space-between;align-items:flex-end">
-        <div><h1>Loans</h1><p class="lead" style="margin:0">Physical library books and Libby checkouts, with due dates.</p></div>
+        <div><h1>Loans</h1><p class="lead" style="margin:0">Library books and Libby checkouts, with due dates.</p></div>
         <div class="row">
           <button class="btn" id="notif-btn">Remind me</button>
           <button class="btn primary" id="loan-add">Add a loan</button>
@@ -427,7 +321,6 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
       <div class="empty" id="loans-empty">No loans tracked. Add one and it becomes a date-due slip here, with a reminder three days before it's due.</div>
     </section>
 
-    <!-- ===== SETTINGS ===== -->
     <section id="tab-settings">
       <h1>Settings</h1>
       <h2>Appearance</h2>
@@ -440,33 +333,32 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
       </div>
       <div class="row" style="margin-top:12px">
         <span>Page turn animation</span>
-        <div class="segment" id="anim-set">
-          <button data-a="1">On</button>
-          <button data-a="0">Off</button>
-        </div>
+        <div class="segment" id="anim-set"><button data-a="1">On</button><button data-a="0">Off</button></div>
       </div>
+
       <h2>Your data</h2>
-      <p class="note">Everything lives in this browser. Export saves your shelf metadata, reading positions, bookmarks, and loans as JSON. Book files are not included; downloaded books re-fetch on import, and uploaded files need uploading again.</p>
+      <p class="note">Everything lives in this browser. Export saves your shelf details, reading positions, bookmarks and loans as JSON. Book files are not included: downloaded books re-fetch on import, uploaded ones need adding again.</p>
       <div class="row" style="margin-top:12px">
         <button class="btn" id="export">Export JSON</button>
         <label class="btn">Import JSON <input type="file" id="import" accept="application/json" hidden></label>
         <button class="btn danger quiet" id="wipe">Delete everything</button>
       </div>
+
       <h2>Troubleshooting</h2>
-      <p class="note">If books won't save or open, this shows what the app can actually see.</p>
+      <p class="note">The self-test opens a small book built in memory, end to end. If it passes, the reader works on this device.</p>
       <div class="row" style="margin-top:12px">
+        <button class="btn primary" id="selftest">Run self-test</button>
         <button class="btn" id="diag-run">Run diagnostics</button>
         <button class="btn quiet" id="diag-copy" style="display:none">Copy</button>
       </div>
       <pre class="diag" id="diag"></pre>
 
       <h2>About</h2>
-      <p class="note">Shelfmark reads DRM-free EPUBs with epub.js, PDFs with pdf.js, and CBZ comics with JSZip. Search comes from Gutendex. Covers and metadata for loans come from Open Library. Suggestions run through your own recommendation endpoint at <code>/api/recommend</code>.</p>
+      <p class="note">Shelfmark reads EPUB and CBZ with its own code — no external reader library, so nothing breaks when a CDN does. PDFs use the browser's viewer, or pdf.js when it is available for page flips and bookmarks. Search comes from Gutendex, loan lookups from Open Library, suggestions from your own <code>/api/recommend</code> endpoint.</p>
     </section>
   </main>
 </div>
 
-<!-- ===== READER ===== -->
 <div id="reader" data-rtheme="lamp">
   <div class="bar">
     <button class="ibtn" id="r-back" aria-label="Back to shelf">
@@ -486,13 +378,19 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
       <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 19l6-14 6 14M6.5 14h7M17 10l3 9"/></svg>
     </button>
   </div>
+
   <div id="stage">
-    <div class="tap l" id="tap-l" aria-label="Previous page"></div>
-    <div id="view"></div>
+    <div id="flip"><iframe id="page" sandbox="allow-same-origin" title="Book page"></iframe></div>
     <div id="comic" class="fit-h"><div class="spread" id="spread"></div></div>
+    <iframe id="pdfnative" title="PDF"></iframe>
+    <div class="tap l" id="tap-l" aria-label="Previous page"></div>
     <div class="tap r" id="tap-r" aria-label="Next page"></div>
     <div class="loading" id="r-loading">Opening…</div>
-    <div class="place-chip" id="place-chip"><span id="place-text"></span><button id="place-go">Go there</button><button class="x" id="place-x" aria-label="Dismiss">✕</button></div>
+    <div class="place-chip" id="place-chip">
+      <span id="place-text"></span>
+      <button id="place-go">Go there</button>
+      <button class="x" id="place-x" aria-label="Dismiss">&#10005;</button>
+    </div>
 
     <div class="panel" id="p-toc">
       <h4>Bookmarks</h4>
@@ -502,6 +400,37 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
     </div>
 
     <div class="panel" id="p-aa">
+      <div id="text-opts">
+        <h4>Text</h4>
+        <div class="opt"><span>Theme</span>
+          <div class="segment" id="r-theme">
+            <button data-t="lamp">Lamp</button><button data-t="sage">Sage</button><button data-t="amber">Amber</button>
+          </div>
+        </div>
+        <div class="opt"><span>Size</span>
+          <div class="segment"><button id="fs-minus">A&minus;</button><button id="fs-plus">A+</button></div>
+        </div>
+        <div class="opt"><span>Line height</span>
+          <div class="segment" id="r-lh">
+            <button data-l="1.4">Tight</button><button data-l="1.65">Normal</button><button data-l="1.95">Loose</button>
+          </div>
+        </div>
+        <div class="opt"><span>Margins</span>
+          <div class="segment" id="r-mg">
+            <button data-m="16">Narrow</button><button data-m="40">Normal</button><button data-m="76">Wide</button>
+          </div>
+        </div>
+        <div class="opt"><span>Columns</span>
+          <div class="segment" id="r-col">
+            <button data-c="auto">Auto</button><button data-c="1">One</button><button data-c="2">Two</button>
+          </div>
+        </div>
+        <div class="opt"><span>Layout</span>
+          <div class="segment" id="r-flow">
+            <button data-f="paginated">Pages</button><button data-f="scrolled">Scroll</button>
+          </div>
+        </div>
+      </div>
       <div id="comic-opts" style="display:none">
         <h4>Pages</h4>
         <div class="opt"><span>Direction</span>
@@ -514,29 +443,9 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
           <div class="segment" id="c-spread"><button data-s="auto">When landscape</button><button data-s="1">Never</button></div>
         </div>
       </div>
-      <div id="text-opts">
-      <h4>Text</h4>
-      <div class="opt"><span>Theme</span>
-        <div class="segment" id="r-theme">
-          <button data-t="lamp">Lamp</button><button data-t="sage">Sage</button><button data-t="amber">Amber</button>
-        </div>
-      </div>
-      <div class="opt"><span>Size</span>
-        <div class="segment"><button id="fs-minus">A−</button><button id="fs-plus">A+</button></div>
-      </div>
-      <div class="opt"><span>Line height</span>
-        <div class="segment" id="r-lh">
-          <button data-l="1.4">Tight</button><button data-l="1.65">Normal</button><button data-l="1.9">Loose</button>
-        </div>
-      </div>
-      <div class="opt"><span>Layout</span>
-        <div class="segment" id="r-flow">
-          <button data-f="paginated">Pages</button><button data-f="scrolled">Scroll</button>
-        </div>
-      </div>
-      </div>
     </div>
   </div>
+
   <div class="foot">
     <span id="r-pct">0%</span>
     <input type="range" id="r-range" min="0" max="1000" value="0" aria-label="Position in book">
@@ -544,7 +453,6 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
   </div>
 </div>
 
-<!-- ===== LOAN DIALOG ===== -->
 <dialog id="loan-dlg">
   <form method="dialog" id="loan-form">
     <h3 id="loan-dlg-title">Add a loan</h3>
@@ -569,107 +477,282 @@ dialog .end{display:flex;justify-content:flex-end;gap:8px;margin-top:20px}
     <input type="hidden" id="l-id"><input type="hidden" id="l-cover">
     <div class="end">
       <button type="button" class="btn quiet" id="loan-cancel">Cancel</button>
-      <button type="submit" class="btn primary" id="loan-save">Save loan</button>
+      <button type="submit" class="btn primary">Save loan</button>
     </div>
   </form>
 </dialog>
 
 <div class="bootbar" id="bootbar"><span id="bootbar-text"></span><button id="bootbar-reload">Reload</button></div>
 <div class="toast" id="toast"></div>
-
 <script>
 /* =====================================================================
-   Shelfmark — single-file PWA
-   Storage: IndexedDB (books, files, loans, settings). No server state.
+   Shelfmark — single-file reader. No external JavaScript.
+   EPUB and CBZ are read by the zip reader below, using the browser's own
+   DecompressionStream; chapters are parsed with DOMParser and rendered in a
+   sandboxed iframe. Only entries actually being read are ever inflated, so a
+   long book opens as fast as a short one.
    ===================================================================== */
 const $ = s => document.querySelector(s);
 const $$ = s => [...document.querySelectorAll(s)];
 const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const DAY = 86400000;
-const isPaged = b => !!b && (b.kind === 'cbz' || b.kind === 'pdf');
 const todayISO = () => new Date().toISOString().slice(0, 10);
-const fmtDate = iso => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, {month:'short', day:'numeric', year:'numeric'});
+const fmtDate = iso => new Date(iso + 'T00:00:00').toLocaleDateString(undefined, { month:'short', day:'numeric', year:'numeric' });
 const daysUntil = iso => Math.round((new Date(iso + 'T00:00:00') - new Date(todayISO() + 'T00:00:00')) / DAY);
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+const sleep = ms => new Promise(r => setTimeout(r, ms));
+const raf = () => new Promise(r => requestAnimationFrame(r));
+const withTimeout = (p, ms, label) => Promise.race([p,
+  new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timed out after ${Math.round(ms/1000)}s`)), ms))]);
 
-const withTimeout = (p, ms, label) => Promise.race([
-  p, new Promise((_, rej) => setTimeout(() => rej(new Error(`${label} timed out after ${Math.round(ms / 1000)}s`)), ms)),
-]);
-const setLoading = t => { const el = $('#r-loading'); if (el) { el.textContent = t; el.style.display = t ? '' : 'none'; } };
 let toastTimer;
 function toast(msg) {
   const t = $('#toast'); t.textContent = msg; t.classList.add('show');
-  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2400);
+  clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('show'), 2800);
+}
+const setLoading = t => { const el = $('#r-loading'); if (el) { el.textContent = t || ''; el.style.display = t ? '' : 'none'; } };
+function bootError(msg) {
+  const bar = $('#bootbar'); if (!bar) return;
+  $('#bootbar-text').textContent = msg; bar.classList.add('show');
+  console.error('[shelfmark]', msg);
+}
+$('#bootbar-reload').addEventListener('click', () => location.reload());
+
+/* =====================================================================
+   ZIP  — central directory + DecompressionStream('deflate-raw')
+   ===================================================================== */
+const TD = new TextDecoder('utf-8');
+async function inflateRaw(raw) {
+  if (typeof DecompressionStream !== 'function')
+    throw new Error('This browser cannot unzip book files (no DecompressionStream). Try a current Chrome, Safari or Firefox.');
+  const ds = new DecompressionStream('deflate-raw');
+  const w = ds.writable.getWriter(); w.write(raw); w.close();
+  const rd = ds.readable.getReader(); const chunks = []; let total = 0;
+  for (;;) { const { done, value } = await rd.read(); if (done) break; chunks.push(value); total += value.length; }
+  const out = new Uint8Array(total); let o = 0;
+  for (const c of chunks) { out.set(c, o); o += c.length; }
+  return out;
+}
+function readZip(buf) {
+  const u8 = new Uint8Array(buf), dv = new DataView(buf), len = u8.length;
+  let eocd = -1;
+  for (let i = len - 22; i >= Math.max(0, len - 65557); i--) if (dv.getUint32(i, true) === 0x06054b50) { eocd = i; break; }
+  if (eocd < 0) throw new Error('This file is not a valid zip archive');
+  let count = dv.getUint16(eocd + 10, true), cdOff = dv.getUint32(eocd + 16, true);
+  if (cdOff === 0xffffffff || count === 0xffff) {              // zip64
+    const loc = eocd - 20;
+    if (loc >= 0 && dv.getUint32(loc, true) === 0x07064b50) {
+      const z = Number(dv.getBigUint64(loc + 8, true));
+      if (dv.getUint32(z, true) === 0x06064b50) {
+        count = Number(dv.getBigUint64(z + 32, true));
+        cdOff = Number(dv.getBigUint64(z + 48, true));
+      }
+    }
+  }
+  const entries = []; const byName = new Map(); let p = cdOff;
+  for (let i = 0; i < count; i++) {
+    if (p + 46 > len || dv.getUint32(p, true) !== 0x02014b50) break;
+    const flags = dv.getUint16(p + 8, true), method = dv.getUint16(p + 10, true);
+    let cSize = dv.getUint32(p + 20, true), uSize = dv.getUint32(p + 24, true);
+    const nameLen = dv.getUint16(p + 28, true), extraLen = dv.getUint16(p + 30, true), cmtLen = dv.getUint16(p + 32, true);
+    let local = dv.getUint32(p + 42, true);
+    const nameBytes = u8.subarray(p + 46, p + 46 + nameLen);
+    const name = TD.decode(nameBytes);
+    if (cSize === 0xffffffff || uSize === 0xffffffff || local === 0xffffffff) {
+      let e = p + 46 + nameLen; const end = e + extraLen;
+      while (e + 4 <= end) {
+        const id = dv.getUint16(e, true), sz = dv.getUint16(e + 2, true);
+        if (id === 0x0001) {
+          let q = e + 4;
+          if (uSize === 0xffffffff) { uSize = Number(dv.getBigUint64(q, true)); q += 8; }
+          if (cSize === 0xffffffff) { cSize = Number(dv.getBigUint64(q, true)); q += 8; }
+          if (local === 0xffffffff) { local = Number(dv.getBigUint64(q, true)); }
+          break;
+        }
+        e += 4 + sz;
+      }
+    }
+    if (!name.endsWith('/')) { const en = { name, method, cSize, uSize, local }; entries.push(en); byName.set(name, en); }
+    p += 46 + nameLen + extraLen + cmtLen;
+  }
+  if (!entries.length) throw new Error('The archive has no readable files in it');
+  const cache = new Map();
+  async function bytes(name) {
+    if (cache.has(name)) return cache.get(name);
+    const e = byName.get(name); if (!e) throw new Error('Missing from archive: ' + name);
+    if (dv.getUint32(e.local, true) !== 0x04034b50) throw new Error('Damaged entry: ' + name);
+    const nl = dv.getUint16(e.local + 26, true), el = dv.getUint16(e.local + 28, true);
+    const start = e.local + 30 + nl + el;
+    const raw = u8.subarray(start, start + (e.method === 0 ? e.uSize : e.cSize));
+    let out;
+    if (e.method === 0) out = raw;
+    else if (e.method === 8) out = await inflateRaw(raw);
+    else throw new Error('Unsupported compression in ' + name);
+    if (cache.size < 60) cache.set(name, out);
+    return out;
+  }
+  return {
+    entries, names: entries.map(e => e.name),
+    has: n => byName.has(n), size: n => byName.get(n)?.uSize || 0, bytes,
+    text: async n => TD.decode(await bytes(n)),
+    blob: async (n, type) => new Blob([await bytes(n)], { type: type || mimeOf(n) }),
+  };
+}
+const MIME = { xhtml:'application/xhtml+xml', html:'text/html', htm:'text/html', xml:'application/xml',
+  css:'text/css', js:'text/javascript', json:'application/json', jpg:'image/jpeg', jpeg:'image/jpeg',
+  png:'image/png', gif:'image/gif', svg:'image/svg+xml', webp:'image/webp', avif:'image/avif', bmp:'image/bmp',
+  otf:'font/otf', ttf:'font/ttf', woff:'font/woff', woff2:'font/woff2', mp3:'audio/mpeg', mp4:'video/mp4',
+  pdf:'application/pdf', txt:'text/plain', ncx:'application/x-dtbncx+xml', opf:'application/oebps-package+xml' };
+const mimeOf = n => MIME[(n.split('.').pop() || '').toLowerCase()] || 'application/octet-stream';
+
+/* =====================================================================
+   EPUB structure
+   ===================================================================== */
+const DP = new DOMParser();
+const xparse = (s, t) => DP.parseFromString(s, t || 'application/xml');
+const localsOf = doc => [...doc.getElementsByTagName('*')];
+
+function joinPath(base, rel) {
+  if (/^[a-z][a-z0-9+.\-]*:/i.test(rel) || rel.startsWith('//')) return rel;
+  if (rel.startsWith('/')) return rel.replace(/^\/+/, '');
+  const dir = base.includes('/') ? base.slice(0, base.lastIndexOf('/')) : '';
+  const parts = dir ? dir.split('/') : [];
+  for (const seg of rel.split('/')) {
+    if (seg === '' || seg === '.') continue;
+    if (seg === '..') parts.pop(); else parts.push(seg);
+  }
+  return parts.join('/');
+}
+const stripHash = h => (h || '').split('#')[0];
+const hashOf = h => { const i = (h || '').indexOf('#'); return i < 0 ? '' : h.slice(i + 1); };
+
+function parseContainer(xml) {
+  const doc = xparse(xml);
+  const rf = localsOf(doc).find(e => e.localName === 'rootfile');
+  const full = rf?.getAttribute('full-path');
+  if (!full) throw new Error('This EPUB has no package file listed in container.xml');
+  return full.replace(/^\/+/, '');
+}
+function parseOpf(xml, opfPath) {
+  const doc = xparse(xml);
+  if (doc.getElementsByTagName('parsererror').length) throw new Error('The package file in this EPUB is malformed');
+  const all = localsOf(doc);
+  const textOf = ln => { const e = all.find(x => x.localName === ln); return e ? (e.textContent || '').trim() : ''; };
+  const manifest = {};
+  for (const it of all.filter(e => e.localName === 'item')) {
+    const id = it.getAttribute('id'), href = it.getAttribute('href');
+    if (!id || !href) continue;
+    manifest[id] = { id, href: joinPath(opfPath, decodeURIComponent(href)),
+      type: it.getAttribute('media-type') || '', props: (it.getAttribute('properties') || '').split(/\s+/) };
+  }
+  const spineEl = all.find(e => e.localName === 'spine');
+  const spine = [];
+  for (const ir of all.filter(e => e.localName === 'itemref')) {
+    if (ir.getAttribute('linear') === 'no') continue;
+    const item = manifest[ir.getAttribute('idref')];
+    if (item) spine.push(item);
+  }
+  let cover = Object.values(manifest).find(m => m.props.includes('cover-image'));
+  if (!cover) {
+    const mc = all.find(e => e.localName === 'meta' && e.getAttribute('name') === 'cover');
+    if (mc) cover = manifest[mc.getAttribute('content')];
+  }
+  if (!cover) cover = Object.values(manifest).find(m => m.type.startsWith('image/') && /cover/i.test(m.href));
+  const navItem = Object.values(manifest).find(m => m.props.includes('nav'));
+  const ncxId = spineEl?.getAttribute('toc');
+  const ncxItem = (ncxId && manifest[ncxId]) || Object.values(manifest).find(m => m.type === 'application/x-dtbncx+xml');
+  return { title: textOf('title'), author: textOf('creator'), manifest, spine,
+    coverHref: cover?.href || null, navHref: navItem?.href || null, ncxHref: ncxItem?.href || null };
+}
+function parseNav(xml, navPath) {
+  const doc = DP.parseFromString(xml, 'application/xhtml+xml');
+  const navs = localsOf(doc).filter(e => e.localName === 'nav');
+  const toc = navs.find(n => (n.getAttribute('epub:type') || '').includes('toc')) || navs[0];
+  if (!toc) return [];
+  const out = [];
+  const walk = (ol, depth) => {
+    for (const li of [...ol.children].filter(c => c.localName === 'li')) {
+      const a = [...li.children].find(c => c.localName === 'a' || c.localName === 'span');
+      if (a) {
+        const href = a.getAttribute?.('href');
+        out.push({ label: (a.textContent || '').trim().replace(/\s+/g, ' '),
+          href: href ? joinPath(navPath, decodeURIComponent(href)) : null, depth });
+      }
+      const sub = [...li.children].find(c => c.localName === 'ol');
+      if (sub) walk(sub, depth + 1);
+    }
+  };
+  const firstOl = localsOf(toc).find(e => e.localName === 'ol');
+  if (firstOl) walk(firstOl, 0);
+  return out;
+}
+function parseNcx(xml, ncxPath) {
+  const doc = xparse(xml); const out = [];
+  const walk = (parent, depth) => {
+    for (const np of [...parent.children].filter(c => c.localName === 'navPoint')) {
+      const lbl = localsOf(np).find(e => e.localName === 'text');
+      const src = [...np.children].find(c => c.localName === 'content')?.getAttribute('src');
+      out.push({ label: (lbl?.textContent || '').trim().replace(/\s+/g, ' '),
+        href: src ? joinPath(ncxPath, decodeURIComponent(src)) : null, depth });
+      walk(np, depth + 1);
+    }
+  };
+  const map = localsOf(doc).find(e => e.localName === 'navMap');
+  if (map) walk(map, 0);
+  return out;
 }
 
-/* ---------- IndexedDB ----------
-   Opening has to survive three awkward cases, all of which used to stall boot:
-   another tab holding an older version open (blocked), a database already newer
-   than this build asks for (VersionError), and storage being unavailable
-   entirely (private browsing). None of them may hang silently. */
-const SCHEMA = 3;
+/* =====================================================================
+   STORAGE
+   ===================================================================== */
+const SCHEMA = 4;
 const STORES = [['books','id'],['files','id'],['loans','id'],['settings','k'],['locs','id'],['parts','k']];
 const DB = {
-  db: null,
-  version: null,
+  db: null, version: null,
   async open() {
-    if (!self.indexedDB) throw new Error('This browser has no storage available for the app. If you are in a private window, open Shelfmark in a normal one.');
-
-    // Find out what version actually exists before asking for one.
+    if (!self.indexedDB) throw new Error('No storage available. If this is a private window, open Shelfmark in a normal one.');
     const existing = await new Promise(res => {
-      let settled = false;
-      const done = v => { if (!settled) { settled = true; res(v); } };
+      let done = false; const fin = v => { if (!done) { done = true; res(v); } };
       const probe = indexedDB.open('shelfmark');
-      probe.onsuccess = () => { const v = probe.result.version; probe.result.close(); done(v); };
-      probe.onerror = () => done(null);
-      probe.onblocked = () => done(null);
-      setTimeout(() => done(null), 4000);
+      probe.onsuccess = () => { const v = probe.result.version; probe.result.close(); fin(v); };
+      probe.onerror = () => fin(null); probe.onblocked = () => fin(null);
+      setTimeout(() => fin(null), 4000);
     });
-
-    // Never request a LOWER version than what's on disk — that throws VersionError.
     const want = existing && existing > SCHEMA ? existing : SCHEMA;
-
     const db = await new Promise((res, rej) => {
-      let settled = false;
-      const fail = e => { if (!settled) { settled = true; rej(e); } };
+      let done = false; const fail = e => { if (!done) { done = true; rej(e); } };
       const r = indexedDB.open('shelfmark', want);
-      r.onupgradeneeded = e => {
-        const d = e.target.result;
-        for (const [n, kp] of STORES) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: kp });
-      };
-      r.onsuccess = () => { if (!settled) { settled = true; res(r.result); } };
+      r.onupgradeneeded = e => { const d = e.target.result;
+        for (const [n, kp] of STORES) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: kp }); };
+      r.onsuccess = () => { if (!done) { done = true; res(r.result); } };
       r.onerror = () => fail(r.error || new Error('Could not open storage'));
-      r.onblocked = () => fail(new Error('Another copy of Shelfmark is open and holding the database. Close the other tab (or the installed app) and reload.'));
+      r.onblocked = () => fail(new Error('Another copy of Shelfmark has the database open. Close the other tab or the installed app, then reload.'));
       setTimeout(() => fail(new Error('Opening storage timed out. Close any other Shelfmark tab or the installed app, then reload.')), 10000);
     });
-
-    // A missing store means a half-finished upgrade; one forced bump repairs it.
-    const missing = STORES.filter(([n]) => !db.objectStoreNames.contains(n)).map(([n]) => n);
+    const missing = STORES.filter(([n]) => !db.objectStoreNames.contains(n));
     if (missing.length) {
-      console.warn('[shelfmark] repairing schema, missing:', missing.join(', '));
       const v = db.version + 1; db.close();
       DB.db = await new Promise((res, rej) => {
         const r = indexedDB.open('shelfmark', v);
-        r.onupgradeneeded = e => {
-          const d = e.target.result;
-          for (const [n, kp] of STORES) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: kp });
-        };
+        r.onupgradeneeded = e => { const d = e.target.result;
+          for (const [n, kp] of STORES) if (!d.objectStoreNames.contains(n)) d.createObjectStore(n, { keyPath: kp }); };
         r.onsuccess = () => res(r.result);
         r.onerror = () => rej(r.error);
         r.onblocked = () => rej(new Error('Close any other Shelfmark tab and reload.'));
       });
     } else DB.db = db;
-
     DB.version = DB.db.version;
-    // If another tab upgrades later, our handle goes stale — tell the user rather than failing writes.
-    DB.db.onversionchange = () => { DB.db.close(); DB.db = null; bootError('Shelfmark was updated in another tab. Reload this page to continue.'); };
-    console.debug('[shelfmark] db open, version', DB.version, '| stores:', [...DB.db.objectStoreNames].join(', '));
+    DB.db.onversionchange = () => { DB.db.close(); DB.db = null;
+      bootError('Shelfmark was updated in another tab. Reload this page to continue.'); };
+    console.debug('[shelfmark] db v' + DB.version, [...DB.db.objectStoreNames].join(','));
   },
   tx(store, mode, fn) {
     return new Promise((res, rej) => {
       if (!DB.db) return rej(new Error('Storage is not open — reload the page.'));
-      const t = DB.db.transaction(store, mode);
-      const req = fn(t.objectStore(store));
+      let req;
+      try { const t = DB.db.transaction(store, mode); req = fn(t.objectStore(store)); }
+      catch (e) { return rej(e); }
       req.onsuccess = () => res(req.result);
       req.onerror = () => rej(req.error);
     });
@@ -684,373 +767,866 @@ const Settings = {
   cache: {},
   async load() { (await DB.all('settings')).forEach(r => Settings.cache[r.k] = r.v); },
   get: (k, d) => Settings.cache[k] ?? d,
-  async set(k, v) { Settings.cache[k] = v; await DB.put('settings', {k, v}); },
+  async set(k, v) { Settings.cache[k] = v; try { await DB.put('settings', { k, v }); } catch {} },
 };
-
-/* =====================================================================
-   UNPACKING
-   An EPUB is a zip. Inflating the whole thing at read time is what makes
-   big books slow to open, so we do it once at upload, in a worker, and
-   store each entry separately. The service worker then serves them back
-   over /_book/<id>/<path> so epub.js can fetch chapters lazily.
-   ===================================================================== */
-const UNPACK_SRC = `
-for (const u of [
-  'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
-  'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
-  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
-]) { try { importScripts(u); if (self.JSZip) break; } catch (e) {} }
-if (!self.JSZip) { self.postMessage({ error: 'JSZip unavailable in worker' }); }
-self.onmessage = async e => {
-  try {
-    const zip = await JSZip.loadAsync(e.data.buf);
-    const names = Object.keys(zip.files).filter(n => !zip.files[n].dir);
-    const parts = [];
-    for (let i = 0; i < names.length; i++) {
-      parts.push({ path: names[i].replace(/^\\.\\//, ''), blob: await zip.file(names[i]).async('blob') });
-      if (i % 25 === 0) self.postMessage({ progress: (i + 1) / names.length });
-    }
-    self.postMessage({ parts });
-  } catch (err) { self.postMessage({ error: String(err && err.message || err) }); }
-};`;
-let unpackURL;
-function unpackZip(buf, onProgress) {
-  return new Promise((resolve, reject) => {
-    unpackURL = unpackURL || URL.createObjectURL(new Blob([UNPACK_SRC], { type: 'text/javascript' }));
-    const w = new Worker(unpackURL);
-    w.onmessage = e => {
-      if (e.data.progress != null) return onProgress?.(e.data.progress);
-      w.terminate();
-      e.data.error ? reject(new Error(e.data.error)) : resolve(e.data.parts);
-    };
-    w.onerror = err => { w.terminate(); reject(new Error(err.message || 'unpack worker failed')); };
-    w.postMessage({ buf }, [buf]);   // transfer, no copy
-  });
-}
-async function saveParts(id, parts) {
-  await new Promise((res, rej) => {
-    const t = DB.db.transaction('parts', 'readwrite'), o = t.objectStore('parts');
-    for (const p of parts) o.put({ k: id + '/' + p.path, blob: p.blob });
-    t.oncomplete = res; t.onerror = () => rej(t.error);
-  });
-}
-async function deleteParts(id) {
-  await new Promise(res => {
-    const t = DB.db.transaction('parts', 'readwrite');
-    const req = t.objectStore('parts').openKeyCursor(IDBKeyRange.bound(id + '/', id + '/\uffff'));
-    req.onsuccess = e => { const c = e.target.result; if (c) { t.objectStore('parts').delete(c.key); c.continue(); } };
-    t.oncomplete = res; t.onerror = res;
-  });
-}
-// Unpacked books need the service worker to serve their parts. Having a controller
-// is not enough — an older sw.js has no /_book/ route — so ask it directly, once.
-let swProbe = null;
-function swCanServe() {
-  if (!navigator.serviceWorker?.controller) return Promise.resolve(false);
-  swProbe = swProbe || (async () => {
-    try {
-      const r = await withTimeout(fetch('/_book/__ping'), 3000, 'service worker ping');
-      const ok = r.ok && (await r.text()).trim() === 'shelfmark-parts-ok';
-      if (!ok) console.warn('[shelfmark] service worker is not serving book parts — using the zip path');
-      return ok;
-    } catch (e) { console.warn('[shelfmark] part route unavailable:', e.message); return false; }
-  })();
-  return swProbe;
-}
-
-/* ---------- state ---------- */
 const S = { books: [], loans: [], shelfFilter: 'all', loanFilter: 'active' };
 
-/* ---------- tabs ---------- */
-function showTab(name) {
-  $$('.rail .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
-  $$('main > section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
-  $('main').scrollTop = 0;
-}
-$$('.rail .tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
-
-/* ---------- theme ---------- */
-function applyAppTheme(t) {
-  document.documentElement.dataset.theme = t;
-  $('meta[name=theme-color]').content = t === 'day' ? '#E3E7D8' : '#25281F';
-  $$('#app-theme button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
-}
-$$('#app-theme button').forEach(b => b.addEventListener('click', () => { applyAppTheme(b.dataset.t); Settings.set('theme', b.dataset.t); }));
-function syncAnim() { $$('#anim-set button').forEach(b => b.classList.toggle('on', b.dataset.a == Settings.get('anim', 1))); }
-$$('#anim-set button').forEach(b => b.addEventListener('click', () => { Settings.set('anim', +b.dataset.a); syncAnim(); }));
-
 /* =====================================================================
-   DISCOVER
+   ADDING BOOKS
    ===================================================================== */
-const GUTENDEX = 'https://gutendex.com/books';
-const PROXY = '/api/epub?url=';
-
-function gutHit(b) {
-  const epub = b.formats['application/epub+zip'] || b.formats['application/epub'] ||
-    Object.entries(b.formats).find(([k]) => k.startsWith('application/epub'))?.[1];
-  return {
-    key: 'gut-' + b.id, title: b.title, author: (b.authors || []).map(a => a.name).join(', ') || 'Unknown',
-    cover: b.formats['image/jpeg'] || null, url: epub, source: 'Gutenberg',
-    meta: `${(b.download_count || 0).toLocaleString()} downloads` + (b.languages?.length ? ' · ' + b.languages.join(', ') : ''),
-    subjects: (b.subjects || []).slice(0, 4),
-  };
-}
-
-function renderHits(container, hits, opts = {}) {
-  if (!hits.length) { container.innerHTML = `<div class="empty">${esc(opts.empty || 'No matches. Try a shorter title or just the author\'s surname.')}</div>`; return; }
-  container.innerHTML = hits.map(h => {
-    const owned = S.books.some(b => b.key === h.key);
-    return `<div class="hit" data-key="${esc(h.key)}">
-      <div class="cover">${h.cover ? `<img src="${esc(h.cover)}" alt="" loading="lazy">` : `<span class="spine"></span>`}</div>
-      <div>
-        <div class="t">${esc(h.title)}</div>
-        <div class="a">${esc(h.author)}</div>
-        ${h.why ? `<div class="why">${esc(h.why)}</div>` : ''}
-        <div class="meta">${esc(h.meta || '')}</div>
-      </div>
-      <div class="side">${h.url
-        ? `<button class="btn ${owned ? '' : 'primary'}" data-add="${esc(h.key)}" ${owned ? 'disabled' : ''}>${owned ? 'On shelf' : 'Add to shelf'}</button>`
-        : `<span class="note">No EPUB available</span>`}</div>
-    </div>`;
-  }).join('');
-  container.querySelectorAll('[data-add]').forEach(btn => btn.addEventListener('click', () => {
-    const h = hits.find(x => x.key === btn.dataset.add); addBook(h, btn);
-  }));
-}
-
-async function searchGutenberg(q) {
-  const box = $('#results');
-  box.innerHTML = '<div class="note">Searching…</div>';
-  try {
-    const r = await fetch(`${GUTENDEX}?search=${encodeURIComponent(q)}&mime_type=application%2Fepub`);
-    const j = await r.json();
-    renderHits(box, j.results.map(gutHit));
-  } catch (e) { box.innerHTML = '<div class="empty">Search failed. Check your connection and try again.</div>'; }
-}
-$('#q-go').addEventListener('click', () => { const q = $('#q').value.trim(); if (q) searchGutenberg(q); });
-$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') $('#q-go').click(); });
-
-$('#url-go').addEventListener('click', async () => {
-  const url = $('#url-in').value.trim(); if (!url) return;
-  const name = decodeURIComponent(url.split('/').pop() || 'book').replace(/\.epub.*$/i, '').replace(/[-_]+/g, ' ');
-  await addBook({ key: 'url-' + url, title: name, author: '', url, source: 'Link' }, $('#url-go'));
-  $('#url-in').value = '';
-});
-
-/* ---------- add a book: download or upload, sniff type, read metadata, store ---------- */
-const IMG_RE = /\.(jpe?g|png|webp|gif|avif)$/i;
+const IMG_RE = /\.(jpe?g|png|webp|gif|avif|bmp)$/i;
 const natural = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
-
-async function renderPdfPage(doc, i, scale) {
-  const page = await doc.getPage(i + 1);
-  const vp0 = page.getViewport({ scale: 1 });
-  const sc = scale || Math.min(3, Math.max(1, ($('#stage')?.clientHeight || 1200) * 1.6 * devicePixelRatio / vp0.height));
-  const vp = page.getViewport({ scale: sc });
-  const c = document.createElement('canvas'); c.width = Math.round(vp.width); c.height = Math.round(vp.height);
-  await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
-  return await new Promise(r => c.toBlob(r, 'image/jpeg', .9));
-}
-async function sniff(buf) {
-  if (!self.JSZip || !self.ePub) throw new Error(
-    'Reader library missing (' + [!self.JSZip && 'JSZip', !self.ePub && 'epub.js'].filter(Boolean).join(' + ') +
-    '). Reload while online; Settings → Run diagnostics shows where it failed.');
-  const head = new TextDecoder('latin1').decode(new Uint8Array(buf.slice(0, 5)));
-  if (head.startsWith('%PDF')) {
-    if (!window.pdfjsLib) throw new Error('The PDF library did not load. Reload while online and try again.');
-    const doc = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
-    return { kind: 'pdf', doc, pages: doc.numPages };
-  }
-  // Both EPUB and CBZ are zip files; look inside to tell them apart.
-  const zip = await JSZip.loadAsync(buf);
-  if (zip.file('META-INF/container.xml')) return { kind: 'epub' };
-  const pages = Object.keys(zip.files).filter(n => !zip.files[n].dir && IMG_RE.test(n) && !/__MACOSX|\/\./.test(n)).sort(natural);
-  if (pages.length) return { kind: 'cbz', zip, pages };
-  throw new Error('That file is not an EPUB, PDF, or comic archive with images');
-}
 
 async function shrinkCover(blob, maxW = 480) {
   try {
     const bmp = await createImageBitmap(blob);
     const sc = Math.min(1, maxW / bmp.width);
-    if (sc === 1) return blob;
-    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
+    if (sc >= 1) { bmp.close?.(); return blob; }
+    const c = document.createElement('canvas');
+    c.width = Math.round(bmp.width * sc); c.height = Math.round(bmp.height * sc);
     c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height);
-    return await new Promise(r => c.toBlob(r, 'image/jpeg', .82));
+    bmp.close?.();
+    return await new Promise(r => c.toBlob(b => r(b || blob), 'image/jpeg', 0.82));
   } catch { return blob; }
 }
 
-async function storeBuffer(h, buf) {
-  if (buf.byteLength < 1000) throw new Error('That is not a book file');
-  const info = await sniff(buf);
-  const id = uid();
-  let title = h.title, author = h.author || '', coverBlob = null, extra = {};
-  if (info.kind === 'epub') {
-    try {
-      const bk = ePub(buf); await bk.ready;
-      const md = await bk.loaded.metadata;
-      title = md.title || title; author = md.creator || author;
-      const cu = await bk.coverUrl(); if (cu) coverBlob = await (await fetch(cu)).blob();
-      bk.destroy();
-    } catch (e) { console.warn('metadata read failed', e); }
-    if (!coverBlob && h.cover) { try { coverBlob = await (await fetch(h.cover)).blob(); } catch {} }
-  } else if (info.kind === 'pdf') {
-    try { const md = await info.doc.getMetadata(); title = md.info?.Title?.trim() || title; author = md.info?.Author?.trim() || author; } catch {}
-    coverBlob = await shrinkCover(await renderPdfPage(info.doc, 0, 1.2));
-    info.doc.destroy();
-    extra = { pages: info.pages, page: 0, rtl: false };
-  } else {
-    const first = await info.zip.file(info.pages[0]).async('blob');
-    coverBlob = await shrinkCover(first);
-    extra = { pages: info.pages.length, page: 0, rtl: /manga|\(jp\)|japanese/i.test(h.title) };
+/* Identify the file and pull out just enough to put it on the shelf. */
+async function inspect(buf, fallbackTitle) {
+  const head = new Uint8Array(buf.slice(0, 5));
+  const sig = String.fromCharCode(...head);
+  if (sig.startsWith('%PDF')) {
+    return { kind: 'pdf', title: fallbackTitle, author: '', cover: null, pages: 0 };
   }
-  await DB.put('files', { id, data: buf, cover: coverBlob });
-  if (info.kind === 'epub') {
-    // Pre-unpack so opening is fast, but the zip stays as the fallback. This step is
-    // an optimisation only: if it fails or stalls, the book is still added.
-    try {
-      const parts = await withTimeout(
-        unpackZip(buf.slice(0), f => setLoading(`Unpacking… ${Math.round(f * 100)}%`)),
-        90000, 'Unpacking');
-      await saveParts(id, parts);
-      extra.unpacked = true;
-    } catch (e) {
-      console.warn('[shelfmark] unpack skipped:', e.message);
-      try { await deleteParts(id); } catch {}   // no half-written set left behind
+  if (!(head[0] === 0x50 && head[1] === 0x4b))
+    throw new Error('Not a book file — Shelfmark reads EPUB, PDF and CBZ');
+
+  const z = readZip(buf);
+  if (z.has('META-INF/container.xml')) {
+    const opfPath = parseContainer(await z.text('META-INF/container.xml'));
+    if (!z.has(opfPath)) throw new Error('This EPUB points at a package file it does not contain');
+    const pkg = parseOpf(await z.text(opfPath), opfPath);
+    if (!pkg.spine.length) throw new Error('This EPUB lists no readable chapters');
+    let cover = null;
+    if (pkg.coverHref && z.has(pkg.coverHref)) {
+      try { cover = await shrinkCover(await z.blob(pkg.coverHref)); } catch {}
     }
+    return { kind: 'epub', title: pkg.title || fallbackTitle, author: pkg.author || '',
+      cover, chapters: pkg.spine.length };
   }
-  const book = { id, key: h.key, kind: info.kind, title, author, source: h.source, url: h.url || null, size: buf.byteLength,
-    addedAt: Date.now(), lastReadAt: null, cfi: null, pct: 0, bookmarks: [], finished: false, ...extra };
-  await DB.put('books', book); S.books.push(book);
-  renderShelf(); updateCounts(); updateStorageNote();
-  return book;
+  const pages = z.names.filter(n => IMG_RE.test(n) && !/__MACOSX|\/\._/.test(n)).sort(natural);
+  if (!pages.length) throw new Error('This archive is neither an EPUB nor a comic with images inside');
+  return { kind: 'cbz', title: fallbackTitle, author: '',
+    cover: await shrinkCover(await z.blob(pages[0])), pages: pages.length,
+    rtl: /manga|\(jp\)|japanese|\bjp\b/i.test(fallbackTitle) };
 }
 
-async function addBook(h, btn) {
-  if (S.books.some(b => b.key === h.key)) { toast('Already on your shelf'); return; }
-  const label = btn?.textContent; if (btn) { btn.disabled = true; btn.textContent = 'Downloading…'; }
-  try {
-    let resp;
-    try { resp = await fetch(h.url); if (!resp.ok) throw 0; }
-    catch { resp = await fetch(PROXY + encodeURIComponent(h.url)); }
-    if (!resp.ok) throw new Error('Download failed (' + resp.status + ')');
-    const book = await storeBuffer(h, await resp.arrayBuffer());
-    if (btn) { btn.textContent = 'On shelf'; }
-    toast(`Added “${book.title}”`);
-  } catch (e) {
-    console.error(e); toast(e.message || 'Could not add that book');
-    if (btn) { btn.disabled = false; btn.textContent = label; }
-  }
+async function storeBuffer(h, buf) {
+  if (!buf || buf.byteLength < 200) throw new Error('That file is empty');
+  const info = await inspect(buf, h.title);
+  const id = uid();
+  await DB.put('files', { id, data: buf, cover: info.cover || null });
+  const book = {
+    id, key: h.key, kind: info.kind,
+    title: (info.title || h.title || 'Untitled').trim(),
+    author: (info.author || h.author || '').trim(),
+    source: h.source, url: h.url || null, size: buf.byteLength,
+    addedAt: Date.now(), lastReadAt: null, finished: false, pct: 0,
+    bookmarks: [], place: null,
+    pos: info.kind === 'epub' ? { idx: 0, page: 0 } : { page: 0 },
+    pages: info.pages || 0, chapters: info.chapters || 0, rtl: !!info.rtl,
+  };
+  await DB.put('books', book);
+  S.books.push(book);
+  renderShelf(); updateCounts(); updateStorageNote();
+  return book;
 }
 
 async function addFiles(files) {
   let ok = 0;
   for (const f of files) {
-    const title = f.name.replace(/\.(epub|cbz|zip|pdf)$/i, '').replace(/[-_]+/g, ' ').trim();
-    const key = 'file-' + f.name + '-' + f.size;
+    const title = f.name.replace(/\.(epub|cbz|cbr|zip|pdf)$/i, '').replace(/[_]+/g, ' ').trim() || f.name;
+    const key = 'file:' + f.name + ':' + f.size;
     if (S.books.some(b => b.key === key)) { toast(`“${title}” is already on your shelf`); continue; }
-    setLoading(''); toast(`Adding “${title}”…`);
+    if (/\.cbr$/i.test(f.name)) { toast(`${f.name}: CBR (RAR) isn't supported — convert it to CBZ`); continue; }
+    toast(`Adding “${title}”…`);
     try {
-      await withTimeout(storeBuffer({ key, title, author: '', source: 'Upload' }, await f.arrayBuffer()), 180000, `Adding ${f.name}`);
+      await withTimeout(storeBuffer({ key, title, author: '', source: 'Device' }, await f.arrayBuffer()),
+        120000, `Adding ${f.name}`);
       ok++;
-    } catch (e) { console.error('[shelfmark] add failed', f.name, e); toast(`${f.name}: ${e.message}`); }
+    } catch (e) {
+      console.error('[shelfmark] add failed', f.name, e);
+      toast(`${f.name}: ${e.message}`);
+    }
   }
-  if (ok) { toast(`Added ${ok} ${ok === 1 ? 'book' : 'books'} to your shelf`); showTab('shelf'); }
+  if (ok) { toast(`Added ${ok} ${ok === 1 ? 'book' : 'books'}`); showTab('shelf'); }
 }
-$('#upload').addEventListener('change', e => { addFiles([...e.target.files]); e.target.value = ''; });
+$('#upload').addEventListener('change', e => { const fs = [...e.target.files]; e.target.value = ''; addFiles(fs); });
 const drop = $('#drop');
-['dragenter', 'dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
-['dragleave', 'drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
+['dragenter','dragover'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('drag'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('drag'); }));
 drop.addEventListener('drop', e => addFiles([...e.dataTransfer.files]));
 
-/* ---------- recommendations via /api/recommend ---------- */
-$('#rec-go').addEventListener('click', async () => {
-  const box = $('#rec-results'), btn = $('#rec-go');
-  btn.disabled = true; btn.textContent = 'Thinking…'; box.innerHTML = '';
+const PROXY = '/api/epub?url=';
+async function addRemote(h, btn) {
+  if (S.books.some(b => b.key === h.key)) { toast('Already on your shelf'); return; }
+  const label = btn?.textContent;
+  if (btn) { btn.disabled = true; btn.textContent = 'Downloading…'; }
   try {
-    const history = S.books.map(b => ({ title: b.title, author: b.author, progress: Math.round(b.pct * 100), finished: b.finished }));
-    const loans = S.loans.map(l => ({ title: l.title, author: l.author }));
-    const r = await fetch('/api/recommend', { method: 'POST', headers: {'Content-Type':'application/json'},
-      body: JSON.stringify({ history, loans, mood: $('#rec-mood').value.trim() }) });
-    const payload = await r.json().catch(() => ({}));
-    if (!r.ok) throw new Error(payload.detail || payload.error || ('Recommendation service returned ' + r.status));
-    const { recommendations } = payload;
-    if (!recommendations?.length) throw new Error('No suggestions came back');
-    box.innerHTML = '<div class="note">Matching suggestions to downloadable copies…</div>';
-    // Resolve each to a real Gutenberg record so "Add to shelf" works
-    const hits = (await Promise.all(recommendations.map(async rec => {
-      try {
-        const j = await (await fetch(`${GUTENDEX}?search=${encodeURIComponent(rec.search || rec.title + ' ' + rec.author)}&mime_type=application%2Fepub`)).json();
-        const g = j.results?.[0];
-        if (g) return { ...gutHit(g), why: rec.why };
-      } catch {}
-      return { key: 'rec-' + rec.title, title: rec.title, author: rec.author, why: rec.why, meta: 'Not found on Gutenberg — try Standard Ebooks', url: null };
-    })));
-    renderHits(box, hits);
+    let resp = null;
+    try { resp = await withTimeout(fetch(h.url), 60000, 'Download'); if (!resp.ok) resp = null; } catch { resp = null; }
+    if (!resp) resp = await withTimeout(fetch(PROXY + encodeURIComponent(h.url)), 60000, 'Download');
+    if (!resp.ok) throw new Error('Download failed (HTTP ' + resp.status + ')');
+    const book = await storeBuffer(h, await resp.arrayBuffer());
+    if (btn) btn.textContent = 'On shelf';
+    toast(`Added “${book.title}”`);
   } catch (e) {
-    box.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
-  } finally { btn.disabled = false; btn.textContent = 'Ask for suggestions'; }
+    console.error('[shelfmark]', e);
+    toast(e.message || 'Could not add that book');
+    if (btn) { btn.disabled = false; btn.textContent = label; }
+  }
+}
+/* =====================================================================
+   READER
+   ===================================================================== */
+const R = {
+  book: null, kind: null, zip: null, pkg: null, toc: [],
+  idx: 0, page: 0, pages: 1, busy: false, saveT: null,
+  urls: new Map(), weights: [], cumulative: [], total: 1,
+  fontSize: 100, lh: '1.65', margin: 40, cols: 'auto', flow: 'paginated', theme: 'lamp',
+  placeOffered: false, pdf: null, comicPages: [], fit: 'h', spread: 'auto',
+};
+const animOn = () => Settings.get('anim', 1) == 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches;
+const isPaged = b => b && (b.kind === 'cbz' || (b.kind === 'pdf' && R.pdf));
+
+function revokeAll() { R.urls.forEach(u => URL.revokeObjectURL(u)); R.urls.clear(); }
+async function blobURL(path) {
+  if (R.urls.has(path)) return R.urls.get(path);
+  const u = URL.createObjectURL(await R.zip.blob(path));
+  R.urls.set(path, u); return u;
+}
+
+/* ---------- open ---------- */
+async function openReader(id) {
+  const book = S.books.find(b => b.id === id);
+  if (!book) return;
+  const t0 = performance.now();
+  R.book = book; R.kind = book.kind; R.placeOffered = false;
+  $('#reader').classList.add('open');
+  $('#reader').classList.toggle('paged', book.kind === 'cbz');
+  $('#reader').classList.remove('native');
+  $('#r-title').textContent = book.title;
+  $('#r-chapter').textContent = '';
+  $('#place-chip').classList.remove('show');
+  closePanels();
+  setLoading('Reading file…');
+  await raf();
+
+  let f;
+  try { f = await DB.get('files', book.id); }
+  catch (e) { return failOpen('Could not read storage: ' + e.message); }
+  if (!f?.data) return failOpen('The file for this book is missing. Remove it from the shelf and add it again.');
+
+  R.theme = Settings.get('rtheme', 'lamp');
+  $('#reader').dataset.rtheme = R.theme;
+  R.fontSize = Settings.get('fontSize', 100);
+  R.lh = Settings.get('lh', '1.65');
+  R.margin = Settings.get('margin', 40);
+  R.cols = Settings.get('cols', 'auto');
+  R.flow = Settings.get('flow', 'paginated');
+  R.fit = Settings.get('cfit_' + book.kind, book.kind === 'pdf' ? 'w' : 'h');
+  R.spread = Settings.get('cspread', 'auto');
+  $('#text-opts').style.display = book.kind === 'epub' ? '' : 'none';
+  $('#comic-opts').style.display = book.kind === 'epub' ? 'none' : '';
+
+  try {
+    if (book.kind === 'epub') await openEpub(book, f.data);
+    else if (book.kind === 'cbz') await openComic(book, f.data);
+    else await openPdf(book, f.data);
+  } catch (e) {
+    console.error('[shelfmark] open failed', e);
+    return failOpen(e.message || 'Could not open this book');
+  }
+  syncControls();
+  setLoading('');
+  console.debug('[shelfmark] opened in', Math.round(performance.now() - t0) + 'ms');
+}
+function failOpen(msg) {
+  setLoading(''); $('#reader').classList.remove('open');
+  R.book = null; toast(msg);
+}
+
+/* ---------- EPUB ---------- */
+async function openEpub(book, data) {
+  setLoading('Reading the book…');
+  R.zip = readZip(data);
+  const opfPath = parseContainer(await R.zip.text('META-INF/container.xml'));
+  R.pkg = parseOpf(await R.zip.text(opfPath), opfPath);
+  R.pkg.spine = R.pkg.spine.filter(s => R.zip.has(s.href));
+  if (!R.pkg.spine.length) throw new Error('None of this EPUB’s chapters could be found inside the file');
+
+  // Progress weighting by chapter size — no indexing pass needed.
+  R.weights = R.pkg.spine.map(s => Math.max(1, R.zip.size(s.href)));
+  R.total = R.weights.reduce((a, b) => a + b, 0);
+  R.cumulative = []; let run = 0;
+  for (const w of R.weights) { R.cumulative.push(run); run += w; }
+
+  R.toc = [];
+  try {
+    if (R.pkg.navHref && R.zip.has(R.pkg.navHref)) R.toc = parseNav(await R.zip.text(R.pkg.navHref), R.pkg.navHref);
+    else if (R.pkg.ncxHref && R.zip.has(R.pkg.ncxHref)) R.toc = parseNcx(await R.zip.text(R.pkg.ncxHref), R.pkg.ncxHref);
+  } catch (e) { console.warn('[shelfmark] toc unreadable', e); }
+  if (!R.toc.length) R.toc = R.pkg.spine.map((s, i) => ({ label: 'Section ' + (i + 1), href: s.href, depth: 0 }));
+
+  const pos = book.pos || { idx: 0, page: 0 };
+  R.idx = clamp(pos.idx | 0, 0, R.pkg.spine.length - 1);
+  await renderChapter(R.idx, { page: pos.page | 0 });
+  renderToc();
+}
+
+function themeCss() {
+  const c = { lamp: ['#221F19', '#D6CBB0', '#D9A85A'], sage: ['#E2E7D7', '#2A3327', '#8A5E22'],
+              amber: ['#F2E3C4', '#46361F', '#8A5E22'] }[R.theme] || ['#221F19', '#D6CBB0', '#D9A85A'];
+  const twoCol = R.cols === '2' || (R.cols === 'auto' && window.innerWidth > 1000 && R.flow === 'paginated');
+  const gap = 48;
+  const w = $('#stage').clientWidth || window.innerWidth;
+  const h = $('#stage').clientHeight || window.innerHeight;
+  const inner = Math.max(200, w - R.margin * 2);
+  const colWidth = twoCol ? Math.floor((inner - gap) / 2) : inner;
+  R.colWidth = colWidth; R.gap = gap; R.twoCol = twoCol; R.stepWidth = inner + gap;
+  const paged = R.flow === 'paginated';
+  return `
+    :root{color-scheme:${R.theme === 'lamp' ? 'dark' : 'light'}}
+    html,body{margin:0;padding:0;background:${c[0]};color:${c[1]};}
+    body{
+      font-family:"Crimson Pro",Georgia,serif;
+      font-size:${R.fontSize}%;
+      line-height:${R.lh};
+      padding:${Math.round(R.margin * 0.6)}px ${R.margin}px;
+      box-sizing:border-box;
+      ${paged ? `height:${h}px;column-width:${colWidth}px;column-gap:${gap}px;column-fill:auto;overflow:hidden;`
+              : `max-width:${Math.min(760, inner)}px;margin:0 auto;`}
+      -webkit-text-size-adjust:100%;
+      overflow-wrap:break-word;
+      word-wrap:break-word;
+      hyphens:auto;
+    }
+    img,svg,video{max-width:100%;height:auto;${paged ? `max-height:${Math.round(h * 0.82)}px;` : ''}}
+    table{max-width:100%}
+    a{color:${c[2]}}
+    h1,h2,h3,h4,h5,h6{color:${c[1]};line-height:1.25;break-after:avoid-column;page-break-after:avoid}
+    p{orphans:2;widows:2}
+    pre{white-space:pre-wrap}
+    ::selection{background:${c[2]};color:${c[0]}}
+  `;
+}
+
+async function renderChapter(idx, opts = {}) {
+  const item = R.pkg.spine[idx];
+  if (!item) return;
+  R.idx = idx;
+  const raw = await R.zip.text(item.href);
+  const doc = DP.parseFromString(raw, item.type === 'text/html' ? 'text/html' : 'application/xhtml+xml');
+  // A malformed chapter still gets shown rather than blocking the book
+  const bad = doc.getElementsByTagName('parsererror').length;
+  const useDoc = bad ? DP.parseFromString(raw, 'text/html') : doc;
+
+  // Rewrite every in-archive reference to a blob URL
+  const rewrite = async (el, attr) => {
+    const v = el.getAttribute(attr); if (!v) return;
+    if (/^(https?:|data:|blob:|mailto:|#)/i.test(v)) return;
+    const path = joinPath(item.href, decodeURIComponent(stripHash(v)));
+    if (!R.zip.has(path)) { el.removeAttribute(attr); return; }
+    try { el.setAttribute(attr, await blobURL(path)); } catch { el.removeAttribute(attr); }
+  };
+  const jobs = [];
+  for (const el of useDoc.querySelectorAll('img[src],image[*|href],source[src],video[src],audio[src]')) {
+    jobs.push(rewrite(el, el.hasAttribute('src') ? 'src' : 'href'));
+    if (el.hasAttribute('xlink:href')) jobs.push(rewrite(el, 'xlink:href'));
+  }
+  for (const el of useDoc.querySelectorAll('link[rel~="stylesheet"][href]')) jobs.push(rewrite(el, 'href'));
+  for (const el of useDoc.querySelectorAll('[srcset]')) el.removeAttribute('srcset');
+  await Promise.all(jobs);
+
+  // Internal links become in-app navigation; external links open in a new tab
+  for (const a of useDoc.querySelectorAll('a[href]')) {
+    const href = a.getAttribute('href');
+    if (/^(https?:|mailto:)/i.test(href)) { a.setAttribute('target', '_blank'); a.setAttribute('rel', 'noopener'); }
+    else {
+      const path = href.startsWith('#') ? item.href : joinPath(item.href, decodeURIComponent(stripHash(href)));
+      a.setAttribute('data-sm', path + (hashOf(href) ? '#' + hashOf(href) : ''));
+      a.setAttribute('href', 'javascript:void 0');
+    }
+  }
+  for (const s of useDoc.querySelectorAll('script')) s.remove();
+
+  const style = useDoc.createElement('style');
+  style.textContent = themeCss();
+  (useDoc.head || useDoc.documentElement).appendChild(style);
+
+  const html = '<!doctype html>' + useDoc.documentElement.outerHTML;
+  const frame = $('#page');
+  await new Promise(res => {
+    frame.onload = () => res();
+    frame.srcdoc = html;
+    setTimeout(res, 6000);
+  });
+  await raf();
+  await measureAndPlace(opts);
+  saveSoon();
+}
+
+async function measureAndPlace(opts = {}) {
+  const frame = $('#page');
+  const win = frame.contentWindow, doc = frame.contentDocument;
+  if (!doc) { R.pages = 1; R.page = 0; updateProgress(); return; }
+  if (R.flow === 'paginated') {
+    doc.documentElement.style.overflow = 'hidden';
+    const total = doc.body.scrollWidth;
+    R.pages = Math.max(1, Math.round(total / R.stepWidth));
+    let page = 0;
+    if (opts.end) page = R.pages - 1;
+    else if (opts.page != null) page = clamp(opts.page, 0, R.pages - 1);
+    R.page = page;
+    if (opts.anchor) {
+      const el = doc.getElementById(opts.anchor) || doc.querySelector('[name="' + CSS.escape(opts.anchor) + '"]');
+      if (el) R.page = clamp(Math.floor(el.getBoundingClientRect().left / R.stepWidth) + R.page, 0, R.pages - 1);
+    }
+    win.scrollTo(R.page * R.stepWidth, 0);
+  } else {
+    R.pages = 1; R.page = 0;
+    doc.documentElement.style.overflow = '';
+    if (opts.anchor) doc.getElementById(opts.anchor)?.scrollIntoView();
+    else if (opts.frac) win.scrollTo(0, opts.frac * doc.body.scrollHeight);
+    else if (opts.end) win.scrollTo(0, doc.body.scrollHeight);
+    else win.scrollTo(0, 0);
+    win.onscroll = () => { updateProgress(); saveSoon(); };
+  }
+  wireFrame(doc);
+  updateProgress();
+}
+
+function wireFrame(doc) {
+  doc.addEventListener('click', e => {
+    const a = e.target.closest?.('a[data-sm]');
+    if (a) { e.preventDefault(); gotoHref(a.getAttribute('data-sm')); return; }
+    closePanels();
+  });
+  doc.addEventListener('keyup', onKey);
+  let sx = null, sy = null;
+  doc.addEventListener('touchstart', e => { sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; }, { passive: true });
+  doc.addEventListener('touchend', e => {
+    if (sx === null || R.flow !== 'paginated') return;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy;
+    sx = sy = null;
+    if (Math.abs(dx) > 55 && Math.abs(dy) < 90) turn(dx < 0 ? 'next' : 'prev');
+  }, { passive: true });
+}
+
+function chapterLabel() {
+  const href = R.pkg?.spine[R.idx]?.href;
+  const hit = R.toc.find(t => stripHash(t.href) === href);
+  return hit ? hit.label : '';
+}
+function epubFraction() {
+  if (!R.total) return 0;
+  const within = R.flow === 'paginated'
+    ? (R.pages > 1 ? R.page / R.pages : 0)
+    : (() => { const d = $('#page').contentDocument; if (!d) return 0;
+        const max = d.body.scrollHeight - d.documentElement.clientHeight;
+        return max > 0 ? clamp($('#page').contentWindow.scrollY / max, 0, 1) : 0; })();
+  return clamp((R.cumulative[R.idx] + R.weights[R.idx] * within) / R.total, 0, 1);
+}
+
+async function gotoHref(href) {
+  const path = stripHash(href), anchor = hashOf(href);
+  const i = R.pkg.spine.findIndex(s => s.href === path);
+  if (i < 0) { toast('That link points outside the book'); return; }
+  closePanels();
+  if (i === R.idx && anchor) {
+    const doc = $('#page').contentDocument;
+    const el = doc?.getElementById(anchor);
+    if (el) {
+      if (R.flow === 'paginated') {
+        const left = el.getBoundingClientRect().left + $('#page').contentWindow.scrollX;
+        R.page = clamp(Math.floor(left / R.stepWidth), 0, R.pages - 1);
+        $('#page').contentWindow.scrollTo(R.page * R.stepWidth, 0);
+        updateProgress();
+      } else el.scrollIntoView();
+      return;
+    }
+  }
+  setLoading('Opening…');
+  await renderChapter(i, { page: 0, anchor });
+  setLoading('');
+}
+
+/* ---------- page turning (shared) ---------- */
+async function turn(dir) {
+  if (R.busy || !R.book) return;
+  if (R.book.kind === 'cbz' || (R.book.kind === 'pdf' && R.pdf)) return turnPaged(dir);
+  if (R.book.kind !== 'epub') return;
+  if (R.flow !== 'paginated') {
+    const win = $('#page').contentWindow;
+    win.scrollBy({ top: (dir === 'next' ? 1 : -1) * win.innerHeight * 0.9, behavior: 'smooth' });
+    return;
+  }
+  const atStart = R.page <= 0, atEnd = R.page >= R.pages - 1;
+  if (dir === 'next' && atEnd && R.idx >= R.pkg.spine.length - 1) { toast('End of the book'); return; }
+  if (dir === 'prev' && atStart && R.idx <= 0) return;
+
+  R.busy = true;
+  const el = $('#flip'), animate = animOn();
+  try {
+    if (animate) {
+      el.style.transformOrigin = dir === 'next' ? 'left center' : 'right center';
+      el.className = 'out';
+      el.style.transform = `rotateY(${dir === 'next' ? -72 : 72}deg)`;
+      el.style.filter = 'brightness(.72)';
+      await sleep(200);
+    }
+    if ((dir === 'next' && !atEnd) || (dir === 'prev' && !atStart)) {
+      R.page += dir === 'next' ? 1 : -1;
+      $('#page').contentWindow.scrollTo(R.page * R.stepWidth, 0);
+      updateProgress(); saveSoon();
+    } else {
+      await renderChapter(R.idx + (dir === 'next' ? 1 : -1), dir === 'next' ? { page: 0 } : { end: true });
+    }
+    if (animate) {
+      el.className = '';
+      el.style.transformOrigin = dir === 'next' ? 'right center' : 'left center';
+      el.style.transform = `rotateY(${dir === 'next' ? 38 : -38}deg)`;
+      el.style.filter = 'brightness(.85)';
+      void el.offsetWidth;
+      el.className = 'in';
+      el.style.transform = 'rotateY(0deg)'; el.style.filter = 'none';
+      await sleep(190);
+    }
+  } finally {
+    el.className = ''; el.style.transform = ''; el.style.filter = ''; R.busy = false;
+  }
+}
+
+/* ---------- progress + saving ---------- */
+function updateProgress() {
+  const b = R.book; if (!b) return;
+  let frac = 0, left = '';
+  if (b.kind === 'epub') {
+    frac = epubFraction();
+    left = R.flow === 'paginated' ? `page ${R.page + 1} of ${R.pages} in section` : '';
+    $('#r-chapter').textContent = chapterLabel();
+    $('#r-mark').classList.toggle('on', b.bookmarks.some(m => m.idx === R.idx && m.page === R.page));
+  } else if (isPaged(b)) {
+    const n = R.comicPages.length || 1;
+    const pages = spreadFor(R.page), last = pages[pages.length - 1];
+    frac = last / Math.max(1, n - 1);
+    left = pages.length > 1 ? `pages ${pages[0] + 1}–${last + 1} of ${n}` : `page ${R.page + 1} of ${n}`;
+    $('#r-mark').classList.toggle('on', b.bookmarks.some(m => m.page === R.page));
+  } else { frac = b.pct || 0; left = 'PDF'; }
+  $('#r-pct').textContent = Math.round(frac * 100) + '%';
+  $('#r-range').value = Math.round(frac * 1000);
+  $('#r-left').textContent = left;
+  b.pct = frac;
+  if (frac >= 0.995) b.finished = true;
+}
+function saveSoon() {
+  const b = R.book; if (!b) return;
+  clearTimeout(R.saveT);
+  R.saveT = setTimeout(async () => {
+    b.lastReadAt = Date.now();
+    b.pos = b.kind === 'epub' ? { idx: R.idx, page: R.page } : { page: R.page };
+    try { await DB.put('books', b); } catch (e) { console.warn('save failed', e); }
+  }, 400);
+}
+
+async function closeReader() {
+  clearTimeout(R.saveT);
+  const b = R.book;
+  if (b) {
+    b.lastReadAt = Date.now();
+    b.pos = b.kind === 'epub' ? { idx: R.idx, page: R.page } : { page: R.page };
+    try { await DB.put('books', b); } catch {}
+  }
+  revokeAll();
+  try { R.pdf?.destroy?.(); } catch {}
+  R.pdf = null; R.zip = null; R.pkg = null; R.book = null; R.comicPages = [];
+  $('#page').srcdoc = ''; $('#spread').innerHTML = ''; $('#pdfnative').removeAttribute('src');
+  $('#reader').classList.remove('open', 'paged', 'native');
+  renderShelf(); updateCounts();
+}
+$('#r-back').addEventListener('click', closeReader);
+
+function onKey(e) {
+  if (!$('#reader').classList.contains('open')) return;
+  if (e.key === 'ArrowRight' || e.key === ' ' || e.key === 'PageDown') turn(R.book?.rtl ? 'prev' : 'next');
+  else if (e.key === 'ArrowLeft' || e.key === 'PageUp') turn(R.book?.rtl ? 'next' : 'prev');
+  else if (e.key === 'Escape') closeReader();
+}
+document.addEventListener('keyup', onKey);
+$('#tap-l').addEventListener('click', () => { closePanels(); turn(R.book?.rtl ? 'next' : 'prev'); });
+$('#tap-r').addEventListener('click', () => { closePanels(); turn(R.book?.rtl ? 'prev' : 'next'); });
+$('#r-range').addEventListener('change', async e => {
+  const f = e.target.value / 1000, b = R.book; if (!b) return;
+  if (b.kind === 'epub') {
+    const target = f * R.total;
+    let i = R.cumulative.findIndex((c, k) => target < c + R.weights[k]);
+    if (i < 0) i = R.pkg.spine.length - 1;
+    const within = (target - R.cumulative[i]) / R.weights[i];
+    setLoading('Jumping…');
+    await renderChapter(i, { page: 0 });
+    if (R.flow === 'paginated') {
+      R.page = clamp(Math.round(within * R.pages), 0, R.pages - 1);
+      $('#page').contentWindow.scrollTo(R.page * R.stepWidth, 0);
+    } else $('#page').contentWindow.scrollTo(0, within * ($('#page').contentDocument?.body.scrollHeight || 0));
+    updateProgress(); setLoading('');
+  } else if (isPaged(b)) showPage(Math.round(f * (R.comicPages.length - 1)));
 });
 
+/* relayout when the window changes shape */
+let resizeT;
+window.addEventListener('resize', () => {
+  if (!R.book) return;
+  clearTimeout(resizeT);
+  resizeT = setTimeout(async () => {
+    if (R.book?.kind === 'epub') { const f = R.pages > 1 ? R.page / R.pages : 0; await renderChapter(R.idx, { page: Math.round(f * R.pages) }); }
+    else if (isPaged(R.book)) showPage(R.page);
+  }, 250);
+});
+/* ---------- comics (CBZ) and PDF ---------- */
+async function openComic(book, data) {
+  setLoading('Opening the comic…');
+  R.zip = readZip(data);
+  R.comicPages = R.zip.names.filter(n => IMG_RE.test(n) && !/__MACOSX|\/\._/.test(n)).sort(natural);
+  if (!R.comicPages.length) throw new Error('No images found in this comic archive');
+  $('#comic').className = 'fit-' + R.fit;
+  await showPage(clamp(book.pos?.page | 0, 0, R.comicPages.length - 1));
+  renderToc();
+}
+function isDouble() {
+  if (R.spread !== 'auto' || R.fit !== 'h') return false;
+  const st = $('#stage');
+  return st.clientWidth > st.clientHeight * 1.15;
+}
+function spreadFor(p) {
+  const n = R.comicPages.length || (R.pdf ? R.pdf.numPages : 1);
+  if (!isDouble() || p === 0) return [p];
+  const a = p % 2 === 1 ? p : p - 1;
+  return [a, a + 1].filter(x => x < n);
+}
+async function pageURL(i) {
+  const key = 'p' + i;
+  if (R.urls.has(key)) return R.urls.get(key);
+  let blob;
+  if (R.pdf) blob = await renderPdfPage(i);
+  else blob = await R.zip.blob(R.comicPages[i]);
+  const u = URL.createObjectURL(blob);
+  R.urls.set(key, u);
+  if (R.urls.size > 24) { const first = R.urls.keys().next().value;
+    if (first.startsWith('p')) { URL.revokeObjectURL(R.urls.get(first)); R.urls.delete(first); } }
+  return u;
+}
+async function showPage(p) {
+  const n = R.comicPages.length || (R.pdf ? R.pdf.numPages : 1);
+  p = clamp(p, 0, n - 1);
+  const pages = spreadFor(p);
+  R.page = pages[0];
+  const order = R.book?.rtl ? [...pages].reverse() : pages;
+  const urls = await Promise.all(order.map(pageURL));
+  const sp = $('#spread');
+  sp.classList.toggle('double', pages.length > 1);
+  sp.innerHTML = urls.map((u, i) => `<img src="${u}" alt="Page ${order[i] + 1}" draggable="false">`).join('');
+  if (R.fit === 'w') $('#comic').scrollTop = 0;
+  for (const i of [pages[pages.length - 1] + 1, pages[pages.length - 1] + 2, pages[0] - 1])
+    if (i >= 0 && i < n) pageURL(i).catch(() => {});
+  updateProgress(); saveSoon();
+}
+async function turnPaged(dir) {
+  const n = R.comicPages.length || (R.pdf ? R.pdf.numPages : 1);
+  const pages = spreadFor(R.page);
+  const target = dir === 'next' ? pages[pages.length - 1] + 1 : R.page - 1;
+  if (target < 0) return;
+  if (target >= n) { toast('Last page'); return; }
+  if (!animOn() || R.fit === 'w') return showPage(target);
+  R.busy = true;
+  const el = $('#comic');
+  try {
+    el.style.transition = 'opacity .12s'; el.style.opacity = '0.25';
+    await sleep(120);
+    await showPage(target);
+    el.style.opacity = '1';
+    await sleep(120);
+  } finally { el.style.transition = ''; el.style.opacity = ''; R.busy = false; }
+}
+$$('#c-dir button').forEach(b => b.addEventListener('click', async () => {
+  R.book.rtl = b.dataset.d === 'rtl'; await DB.put('books', R.book); syncControls(); showPage(R.page);
+}));
+$$('#c-fit button').forEach(b => b.addEventListener('click', () => {
+  R.fit = b.dataset.f; Settings.set('cfit_' + R.book.kind, R.fit);
+  $('#comic').className = 'fit-' + R.fit; syncControls(); showPage(R.page);
+}));
+$$('#c-spread button').forEach(b => b.addEventListener('click', () => {
+  R.spread = b.dataset.s; Settings.set('cspread', R.spread); syncControls(); showPage(R.page);
+}));
+(() => {
+  let sx = null, sy = null; const el = $('#comic');
+  el.addEventListener('touchstart', e => { sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; }, { passive: true });
+  el.addEventListener('touchend', e => {
+    if (sx === null) return;
+    const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = sy = null;
+    if (Math.abs(dx) > 55 && Math.abs(dy) < 90) { closePanels(); turn((dx < 0) !== !!R.book?.rtl ? 'next' : 'prev'); }
+  }, { passive: true });
+})();
+
+/* PDF: pdf.js when it can be fetched (page flips, bookmarks), otherwise the
+   browser's own viewer, which always works but has no page tracking. */
+const PDF_URLS = [
+  'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+  'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+];
+let pdfLoad = null;
+function loadPdfJs() {
+  if (self.pdfjsLib) return Promise.resolve(true);
+  pdfLoad = pdfLoad || (async () => {
+    for (const u of PDF_URLS) {
+      try {
+        await new Promise((res, rej) => {
+          const s = document.createElement('script');
+          s.src = u; s.onload = res; s.onerror = () => rej(new Error('no'));
+          document.head.appendChild(s);
+          setTimeout(() => rej(new Error('timeout')), 12000);
+        });
+        if (self.pdfjsLib) {
+          self.pdfjsLib.GlobalWorkerOptions.workerSrc = u.replace('pdf.min.js', 'pdf.worker.min.js');
+          console.debug('[shelfmark] pdf.js from', u);
+          return true;
+        }
+      } catch {}
+    }
+    console.warn('[shelfmark] pdf.js unavailable — using the browser PDF viewer');
+    return false;
+  })();
+  return pdfLoad;
+}
+async function renderPdfPage(i) {
+  const page = await R.pdf.getPage(i + 1);
+  const v1 = page.getViewport({ scale: 1 });
+  const target = ($('#stage').clientHeight || 1200) * 1.7 * (window.devicePixelRatio || 1);
+  const scale = clamp(target / v1.height, 1, 3);
+  const vp = page.getViewport({ scale });
+  const c = document.createElement('canvas');
+  c.width = Math.round(vp.width); c.height = Math.round(vp.height);
+  await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise;
+  return await new Promise(r => c.toBlob(b => r(b), 'image/jpeg', 0.9));
+}
+async function openPdf(book, data) {
+  setLoading('Opening the PDF…');
+  const ok = await withTimeout(loadPdfJs(), 15000, 'Loading the PDF engine').catch(() => false);
+  if (ok) {
+    try {
+      R.pdf = await self.pdfjsLib.getDocument({ data: data.slice(0) }).promise;
+      R.comicPages = [];
+      $('#reader').classList.add('paged');
+      $('#comic').className = 'fit-' + R.fit;
+      if (!book.pages) { book.pages = R.pdf.numPages; DB.put('books', book).catch(() => {}); }
+      await showPage(clamp(book.pos?.page | 0, 0, R.pdf.numPages - 1));
+      renderToc();
+      return;
+    } catch (e) { console.warn('[shelfmark] pdf.js failed, falling back', e); R.pdf = null; }
+  }
+  // Native viewer fallback — always available, no page tracking.
+  const url = URL.createObjectURL(new Blob([data], { type: 'application/pdf' }));
+  R.urls.set('native', url);
+  $('#reader').classList.add('native');
+  $('#pdfnative').src = url;
+  $('#r-left').textContent = 'browser viewer';
+  $('#r-pct').textContent = '';
+  toast('Opened in the browser PDF viewer — page flips and bookmarks need pdf.js, which could not be loaded');
+}
+
+/* ---------- bookmarks, saved place, contents ---------- */
+function placeLabel(pl) {
+  return `${Math.round((pl.pct || 0) * 100)}%` + (pl.chapter ? ' · ' + pl.chapter : pl.page != null ? ' · page ' + (pl.page + 1) : '');
+}
+function atPlace() {
+  const pl = R.book?.place; if (!pl) return false;
+  return R.book.kind === 'epub' ? (pl.idx === R.idx && pl.page === R.page) : pl.page === R.page;
+}
+function offerPlace() {
+  const pl = R.book?.place;
+  if (!pl || R.placeOffered) return;
+  R.placeOffered = true;
+  if (atPlace()) return;
+  $('#place-text').textContent = 'Your saved place: ' + placeLabel(pl);
+  $('#place-chip').classList.add('show');
+  clearTimeout(R.chipT);
+  R.chipT = setTimeout(() => $('#place-chip').classList.remove('show'), 9000);
+}
+$('#place-go').addEventListener('click', async () => {
+  const pl = R.book?.place; if (!pl) return;
+  $('#place-chip').classList.remove('show');
+  if (R.book.kind === 'epub') { setLoading('Going there…'); await renderChapter(pl.idx, { page: pl.page }); setLoading(''); }
+  else showPage(pl.page);
+});
+$('#place-x').addEventListener('click', () => $('#place-chip').classList.remove('show'));
+$('#r-place').addEventListener('click', async () => {
+  const b = R.book; if (!b) return;
+  b.place = b.kind === 'epub'
+    ? { idx: R.idx, page: R.page, pct: epubFraction(), chapter: chapterLabel(), at: Date.now() }
+    : { page: R.page, pct: b.pct, at: Date.now() };
+  try { await DB.put('books', b); } catch {}
+  $('#r-place').classList.add('on');
+  setTimeout(() => $('#r-place').classList.remove('on'), 900);
+  toast('Place saved at ' + placeLabel(b.place));
+});
+$('#r-mark').addEventListener('click', async () => {
+  const b = R.book; if (!b) return;
+  if (b.kind === 'epub') {
+    const i = b.bookmarks.findIndex(m => m.idx === R.idx && m.page === R.page);
+    if (i >= 0) { b.bookmarks.splice(i, 1); toast('Bookmark removed'); }
+    else {
+      let snippet = '';
+      try {
+        const doc = $('#page').contentDocument;
+        snippet = (doc?.body.innerText || '').trim().slice(0, 70).replace(/\s+/g, ' ');
+      } catch {}
+      b.bookmarks.push({ idx: R.idx, page: R.page, pct: epubFraction(), chapter: chapterLabel(), snippet, at: Date.now() });
+      toast('Bookmarked');
+    }
+  } else {
+    const i = b.bookmarks.findIndex(m => m.page === R.page);
+    if (i >= 0) { b.bookmarks.splice(i, 1); toast('Bookmark removed'); }
+    else { b.bookmarks.push({ page: R.page, at: Date.now() }); toast(`Bookmarked page ${R.page + 1}`); }
+  }
+  try { await DB.put('books', b); } catch {}
+  updateProgress(); renderToc();
+});
+function renderToc() {
+  const b = R.book; if (!b) return;
+  const bm = $('#bm-list'), tl = $('#toc-list');
+  if (b.kind === 'epub') {
+    const marks = [...b.bookmarks].sort((x, y) => (x.pct || 0) - (y.pct || 0));
+    bm.innerHTML = marks.length ? marks.map((m, i) => `<button class="item" data-bm="${i}">
+      <span>${esc(m.chapter || 'Bookmark')}${m.snippet ? `<br><small>${esc(m.snippet)}…</small>` : ''}</span>
+      <small>${Math.round((m.pct || 0) * 100)}%</small></button>`).join('')
+      : '<div class="note">No bookmarks yet. Tap the ribbon to mark a page.</div>';
+    tl.innerHTML = R.toc.map((t, i) => `<button class="item d${Math.min(2, t.depth)}" data-toc="${i}"><span>${esc(t.label || 'Section')}</span></button>`).join('');
+    bm.querySelectorAll('[data-bm]').forEach(x => x.addEventListener('click', async () => {
+      const m = marks[+x.dataset.bm]; closePanels();
+      setLoading('Opening…'); await renderChapter(m.idx, { page: m.page }); setLoading('');
+    }));
+    tl.querySelectorAll('[data-toc]').forEach(x => x.addEventListener('click', () => {
+      const t = R.toc[+x.dataset.toc]; if (t.href) gotoHref(t.href);
+    }));
+  } else {
+    const n = R.comicPages.length || (R.pdf ? R.pdf.numPages : 0);
+    const marks = [...b.bookmarks].sort((x, y) => x.page - y.page);
+    bm.innerHTML = marks.length ? marks.map(m => `<button class="item" data-page="${m.page}">
+      <span>Page ${m.page + 1}</span><small>${Math.round(m.page / Math.max(1, n - 1) * 100)}%</small></button>`).join('')
+      : '<div class="note">No bookmarks yet. Tap the ribbon to mark a page.</div>';
+    tl.innerHTML = `<div class="note">${n} pages. Use the slider at the bottom to jump.</div>`;
+    bm.querySelectorAll('[data-page]').forEach(x => x.addEventListener('click', () => { showPage(+x.dataset.page); closePanels(); }));
+  }
+}
+function closePanels() { $$('.panel').forEach(p => p.classList.remove('open')); }
+function togglePanel(sel) { const p = $(sel), was = p.classList.contains('open'); closePanels(); if (!was) p.classList.add('open'); }
+$('#r-toc').addEventListener('click', () => { renderToc(); togglePanel('#p-toc'); });
+$('#r-aa').addEventListener('click', () => togglePanel('#p-aa'));
+
+/* ---------- reader settings ---------- */
+function syncControls() {
+  $$('#r-theme button').forEach(b => b.classList.toggle('on', b.dataset.t === R.theme));
+  $$('#r-lh button').forEach(b => b.classList.toggle('on', b.dataset.l === String(R.lh)));
+  $$('#r-mg button').forEach(b => b.classList.toggle('on', +b.dataset.m === +R.margin));
+  $$('#r-col button').forEach(b => b.classList.toggle('on', b.dataset.c === String(R.cols)));
+  $$('#r-flow button').forEach(b => b.classList.toggle('on', b.dataset.f === R.flow));
+  $$('#c-dir button').forEach(b => b.classList.toggle('on', (b.dataset.d === 'rtl') === !!R.book?.rtl));
+  $$('#c-fit button').forEach(b => b.classList.toggle('on', b.dataset.f === R.fit));
+  $$('#c-spread button').forEach(b => b.classList.toggle('on', b.dataset.s === String(R.spread)));
+}
+async function relayout() {
+  if (R.book?.kind !== 'epub') return;
+  const frac = R.pages > 1 ? R.page / R.pages : 0;
+  await renderChapter(R.idx, { page: Math.round(frac * R.pages) });
+  syncControls();
+}
+$$('#r-theme button').forEach(b => b.addEventListener('click', () => {
+  R.theme = b.dataset.t; $('#reader').dataset.rtheme = R.theme; Settings.set('rtheme', R.theme); relayout(); syncControls();
+}));
+$('#fs-minus').addEventListener('click', () => { R.fontSize = clamp(R.fontSize - 10, 70, 240); Settings.set('fontSize', R.fontSize); relayout(); });
+$('#fs-plus').addEventListener('click', () => { R.fontSize = clamp(R.fontSize + 10, 70, 240); Settings.set('fontSize', R.fontSize); relayout(); });
+$$('#r-lh button').forEach(b => b.addEventListener('click', () => { R.lh = b.dataset.l; Settings.set('lh', R.lh); relayout(); }));
+$$('#r-mg button').forEach(b => b.addEventListener('click', () => { R.margin = +b.dataset.m; Settings.set('margin', R.margin); relayout(); }));
+$$('#r-col button').forEach(b => b.addEventListener('click', () => { R.cols = b.dataset.c; Settings.set('cols', R.cols); relayout(); }));
+$$('#r-flow button').forEach(b => b.addEventListener('click', () => { R.flow = b.dataset.f; Settings.set('flow', R.flow); relayout(); }));
 /* =====================================================================
    SHELF
    ===================================================================== */
-const coverURLs = new Map();
-async function coverSrc(book) {
-  if (coverURLs.has(book.id)) return coverURLs.get(book.id);
-  const f = await DB.get('files', book.id);
-  const u = f?.cover ? URL.createObjectURL(f.cover) : null;
-  coverURLs.set(book.id, u); return u;
+const coverCache = new Map();
+async function coverFor(book) {
+  if (coverCache.has(book.id)) return coverCache.get(book.id);
+  let u = null;
+  try { const f = await DB.get('files', book.id); if (f?.cover) u = URL.createObjectURL(f.cover); } catch {}
+  coverCache.set(book.id, u);
+  return u;
 }
-
+const KIND_LABEL = { epub: 'EPUB', cbz: 'Comic', pdf: 'PDF' };
 async function renderShelf() {
-  const g = $('#shelf');
+  const g = $('#shelf'); if (!g) return;
   const list = S.books
-    .filter(b => S.shelfFilter === 'all' || (S.shelfFilter === 'finished' ? b.finished : (!b.finished && b.pct > 0)))
+    .filter(b => S.shelfFilter === 'all' ? true : S.shelfFilter === 'finished' ? b.finished : (!b.finished && (b.pct || 0) > 0.001))
     .sort((a, b) => (b.lastReadAt || b.addedAt) - (a.lastReadAt || a.addedAt));
   $('#shelf-empty').style.display = list.length ? 'none' : '';
   g.innerHTML = list.map(b => `
     <div class="book" data-id="${b.id}">
       <button class="cover" aria-label="Read ${esc(b.title)}">
         <span class="spine"></span>
-        <span class="placeholder"><b>${esc(b.title)}</b><span>${esc(b.author)}</span></span>
-        <span class="ribbon ${b.finished ? 'done' : ''}" style="height:${b.finished ? 100 : Math.max(0, Math.round(b.pct * 100))}%"></span>
-        ${isPaged(b) ? `<span class="kind">${b.kind === 'pdf' ? 'PDF · ' : ''}${b.pages} pages</span>` : ''}
+        <span class="ph"><b>${esc(b.title)}</b><span>${esc(b.author)}</span></span>
+        <span class="ribbon ${b.finished ? 'done' : ''}" style="height:${b.finished ? 100 : Math.round(clamp(b.pct || 0, 0, 1) * 100)}%"></span>
+        <span class="kind">${KIND_LABEL[b.kind] || ''}${b.pages ? ' · ' + b.pages + 'p' : ''}</span>
         ${b.place ? `<span class="placebadge">Place saved · ${Math.round((b.place.pct || 0) * 100)}%</span>` : ''}
       </button>
       <div class="t">${esc(b.title)}</div>
       <div class="a">${esc(b.author)}</div>
-      <div class="pct">${b.finished ? 'Finished' : b.pct > 0 ? Math.round(b.pct * 100) + '% read' : 'Not started'}</div>
-      ${b.place ? `<div class="place">Saved place <b>${esc(placeLabel(b.place))}</b></div>` : ''}
+      <div class="pct">${b.finished ? 'Finished' : (b.pct || 0) > 0.001 ? Math.round(b.pct * 100) + '% read' : 'Not started'}</div>
       <div class="actions">
         ${b.place ? `<button class="btn quiet" data-resume="${b.id}">Resume there</button>` : ''}
-        <button class="btn quiet" data-done="${b.id}">${b.finished ? 'Reopen' : 'Mark finished'}</button>
+        <button class="btn quiet" data-done="${b.id}">${b.finished ? 'Reopen' : 'Finished'}</button>
         <button class="btn quiet danger" data-rm="${b.id}">Remove</button>
       </div>
     </div>`).join('');
   for (const b of list) {
-    const src = await coverSrc(b);
-    if (src) { const c = g.querySelector(`[data-id="${b.id}"] .cover`); const img = new Image(); img.src = src; img.alt = ''; c.insertBefore(img, c.querySelector('.placeholder')); c.querySelector('.placeholder').remove(); }
+    const u = await coverFor(b);
+    if (!u) continue;
+    const cov = g.querySelector(`[data-id="${b.id}"] .cover`);
+    if (!cov) continue;
+    const img = new Image(); img.src = u; img.alt = '';
+    cov.insertBefore(img, cov.querySelector('.ph'));
+    cov.querySelector('.ph')?.remove();
   }
   g.querySelectorAll('.cover').forEach(c => c.addEventListener('click', () => openReader(c.closest('.book').dataset.id)));
   g.querySelectorAll('[data-resume]').forEach(x => x.addEventListener('click', async () => {
-    const b = S.books.find(b => b.id === x.dataset.resume);
-    if (isPaged(b)) b.page = b.place.page; else b.cfi = b.place.cfi;
+    const b = S.books.find(y => y.id === x.dataset.resume);
+    b.pos = b.kind === 'epub' ? { idx: b.place.idx, page: b.place.page } : { page: b.place.page };
     await DB.put('books', b); openReader(b.id);
   }));
   g.querySelectorAll('[data-done]').forEach(x => x.addEventListener('click', async () => {
-    const b = S.books.find(b => b.id === x.dataset.done); b.finished = !b.finished; await DB.put('books', b); renderShelf();
+    const b = S.books.find(y => y.id === x.dataset.done);
+    b.finished = !b.finished; await DB.put('books', b); renderShelf();
   }));
   g.querySelectorAll('[data-rm]').forEach(x => x.addEventListener('click', async () => {
-    const b = S.books.find(b => b.id === x.dataset.rm);
+    const b = S.books.find(y => y.id === x.dataset.rm);
     if (!confirm(`Remove “${b.title}” and its file from this device?`)) return;
-    await DB.del('books', b.id); await DB.del('files', b.id); DB.del('locs', b.id).catch(() => {}); deleteParts(b.id).catch(() => {});
-    S.books = S.books.filter(y => y.id !== b.id); renderShelf(); updateCounts(); updateStorageNote();
+    await DB.del('books', b.id); await DB.del('files', b.id);
+    const u = coverCache.get(b.id); if (u) URL.revokeObjectURL(u);
+    coverCache.delete(b.id);
+    S.books = S.books.filter(y => y.id !== b.id);
+    renderShelf(); updateCounts(); updateStorageNote();
   }));
 }
 $$('#shelf-filter button').forEach(b => b.addEventListener('click', () => {
-  $$('#shelf-filter button').forEach(x => x.classList.toggle('on', x === b)); S.shelfFilter = b.dataset.f; renderShelf();
+  $$('#shelf-filter button').forEach(x => x.classList.toggle('on', x === b));
+  S.shelfFilter = b.dataset.f; renderShelf();
 }));
-
 function updateCounts() {
   $('#c-shelf').textContent = S.books.length;
   const active = S.loans.filter(l => l.status !== 'returned');
@@ -1059,441 +1635,90 @@ function updateCounts() {
 }
 async function updateStorageNote() {
   const mb = S.books.reduce((n, b) => n + (b.size || 0), 0) / 1048576;
-  let txt = `${S.books.length} book${S.books.length === 1 ? '' : 's'} · ${mb.toFixed(1)} MB on device`;
-  if (navigator.storage?.estimate) { const e = await navigator.storage.estimate(); if (e.quota) txt += ` of ${(e.quota / 1073741824).toFixed(0)} GB`; }
+  let txt = `${S.books.length} book${S.books.length === 1 ? '' : 's'} · ${mb.toFixed(1)} MB`;
+  try { if (navigator.storage?.estimate) { const e = await navigator.storage.estimate();
+    if (e.quota) txt += ` of ${(e.quota / 1073741824).toFixed(0)} GB`; } } catch {}
   $('#storage-note').textContent = txt;
 }
 
 /* =====================================================================
-   READER (epub.js)
+   DISCOVER
    ===================================================================== */
-const R = { book: null, rendition: null, current: null, cur: null, toc: [], fontSize: 100, lh: '1.65', theme: 'lamp', flow: 'paginated', saveT: null, busy: false };
-const wait = ms => new Promise(r => setTimeout(r, ms));
-const animOn = () => Settings.get('anim', 1) == 1 && !matchMedia('(prefers-reduced-motion: reduce)').matches;
-
-const THEMES = {
-  lamp:  { body: { background: '#221F19', color: '#D6CBB0' }, 'a': { color: '#D9A85A' }, 'h1,h2,h3,h4': { color: '#EADFC6' } },
-  sage:  { body: { background: '#E2E7D7', color: '#2A3327' }, 'a': { color: '#8A5E22' } },
-  amber: { body: { background: '#F2E3C4', color: '#46361F' }, 'a': { color: '#8A5E22' } },
-};
-
-async function openReader(id) {
-  const book = S.books.find(b => b.id === id); if (!book) return;
-  const t0 = performance.now();
-  $('#reader').classList.add('open'); setLoading('Reading file…');
-  await new Promise(r => requestAnimationFrame(r));   // let the overlay paint before the heavy work
-  const f = await DB.get('files', id); if (!f) { setLoading(''); $('#reader').classList.remove('open'); toast('The file for this book is missing. Remove and re-add it.'); return; }
-  console.debug('[shelfmark] file read', Math.round(performance.now() - t0) + 'ms', ((book.size || 0) / 1048576).toFixed(1) + 'MB');
-  R.current = book; R.cur = null;
-  $('#reader').classList.toggle('comic', isPaged(book));
-  $('#comic-opts').style.display = isPaged(book) ? '' : 'none';
-  $('#text-opts').style.display = isPaged(book) ? 'none' : '';
-  if (isPaged(book)) { setLoading(book.kind === 'pdf' ? 'Opening the PDF…' : 'Opening the comic…'); return openComic(book, f); }
-  R.fontSize = Settings.get('fontSize', 100); R.lh = Settings.get('lh', '1.65');
-  R.theme = Settings.get('rtheme', 'lamp'); R.flow = Settings.get('flow', 'paginated');
-  $('#reader').dataset.rtheme = R.theme;
-  $('#r-title').textContent = book.title; $('#r-chapter').textContent = '';
-  closePanels(); syncReaderControls(); $('#place-chip').classList.remove('show'); R.placeOffered = false;
-
-  const fast = book.unpacked && await swCanServe();
-  setLoading(fast ? 'Opening…' : 'Unpacking the book…');
-  await new Promise(r => requestAnimationFrame(r));
-
-  let bk = null;
-  if (fast) {
-    // Fast path: epub.js fetches chapters on demand through the service worker.
-    let cand = null;
-    try {
-      cand = ePub(location.origin + '/_book/' + book.id + '/');
-      await withTimeout(cand.ready, 10000, 'Opening the unpacked book');
-      bk = cand;
-      console.debug('[shelfmark] opened unpacked', Math.round(performance.now() - t0) + 'ms');
-    } catch (e) {
-      console.warn('[shelfmark] unpacked open failed, falling back to the zip:', e.message);
-      try { cand?.destroy(); } catch {}
-    }
-  }
-  if (!bk) {
-    // Fallback: inflate the whole archive, the original behaviour.
-    setLoading('Unpacking the book…');
-    if (!f.data) { setLoading(''); $('#reader').classList.remove('open'); toast('This book could not be opened. Remove and re-add it.'); return; }
-    try {
-      bk = ePub(f.data);
-      await withTimeout(bk.ready, 120000, 'Opening the book');
-    } catch (e) {
-      console.error('[shelfmark] open failed', e);
-      try { bk?.destroy(); } catch {}
-      setLoading(''); $('#reader').classList.remove('open');
-      toast(e.message.includes('timed out') ? 'This book is taking too long to open — it may be corrupt.' : 'Could not open this book: ' + e.message);
-      return;
-    }
-    console.debug('[shelfmark] opened from zip', Math.round(performance.now() - t0) + 'ms');
-    if (!book.unpacked) upgradeToUnpacked(book);   // unpack it in the background for next time
-  }
-  R.book = bk;
-  setLoading('Laying out the page…');
-  const rendition = bk.renderTo('view', {
-    width: '100%', height: '100%', flow: R.flow, spread: R.flow === 'paginated' ? 'auto' : 'none', minSpreadWidth: 900,
-    allowScriptedContent: false,
-  });
-  R.rendition = rendition;
-  for (const [k, v] of Object.entries(THEMES)) rendition.themes.register(k, v);
-  rendition.themes.select(R.theme);
-  rendition.themes.fontSize(R.fontSize + '%');
-  rendition.themes.override('line-height', R.lh);
-  rendition.themes.override('font-family', '"Crimson Pro", Georgia, serif');
-
-  await rendition.display(book.cfi || undefined);
-  setLoading('');
-  console.debug('[shelfmark] first page', Math.round(performance.now() - t0) + 'ms');
-
-  bk.loaded.navigation.then(nav => { R.toc = flattenToc(nav.toc); renderToc(); });
-  ensureLocations(book, bk);
-
-  rendition.on('relocated', loc => {
-    R.cur = loc;
-    updateProgress(loc); offerPlace();
-    clearTimeout(R.saveT);
-    R.saveT = setTimeout(async () => {
-      book.cfi = loc.start.cfi; book.lastReadAt = Date.now();
-      if (bk.locations.length()) book.pct = bk.locations.percentageFromCfi(loc.start.cfi) || 0;
-      if (loc.atEnd) { book.pct = 1; book.finished = true; }
-      await DB.put('books', book);
-    }, 400);
-  });
-  rendition.on('keyup', onKey);
-  let tx = null, ty = null;
-  rendition.on('touchstart', e => { tx = e.changedTouches[0].clientX; ty = e.changedTouches[0].clientY; });
-  rendition.on('touchend', e => {
-    if (tx === null || R.flow !== 'paginated') return;
-    const dx = e.changedTouches[0].clientX - tx, dy = e.changedTouches[0].clientY - ty;
-    if (Math.abs(dx) > 60 && Math.abs(dy) < 80) turn(dx < 0 ? 'next' : 'prev');
-    tx = ty = null;
-  });
-  rendition.on('click', () => closePanels());
+const GUTENDEX = 'https://gutendex.com/books';
+function gutHit(b) {
+  const fmts = b.formats || {};
+  const epub = fmts['application/epub+zip'] || Object.entries(fmts).find(([k]) => k.startsWith('application/epub'))?.[1];
+  return { key: 'gut:' + b.id, title: b.title, author: (b.authors || []).map(a => a.name).join(', ') || 'Unknown',
+    cover: fmts['image/jpeg'] || null, url: epub ? epub.replace(/^http:/, 'https:') : null, source: 'Gutenberg',
+    meta: `${(b.download_count || 0).toLocaleString()} downloads${b.languages?.length ? ' · ' + b.languages.join(', ') : ''}` };
 }
-
-/* Books added before unpacking existed get upgraded quietly the first time they're opened. */
-async function upgradeToUnpacked(book) {
-  if (book.kind !== 'epub' || book.unpacked || book.upgrading) return;
-  book.upgrading = true;
-  setTimeout(async () => {
-    try {
-      const f = await DB.get('files', book.id); if (!f?.data) return;
-      const parts = await withTimeout(unpackZip(f.data.slice(0)), 90000, 'Background unpack');
-      await saveParts(book.id, parts);
-      book.unpacked = true; delete book.upgrading; await DB.put('books', book);
-      console.debug('[shelfmark] upgraded to unpacked:', book.title);
-    } catch (e) { delete book.upgrading; deleteParts(book.id).catch(() => {}); console.warn('[shelfmark] background unpack failed:', e.message); }
-  }, 4000);
+function renderHits(box, hits) {
+  if (!hits.length) { box.innerHTML = `<div class="empty">No matches. Try a shorter title, or just the author's surname.</div>`; return; }
+  box.innerHTML = hits.map(h => {
+    const owned = S.books.some(b => b.key === h.key);
+    return `<div class="hit">
+      <div class="thumb">${h.cover ? `<img src="${esc(h.cover)}" alt="" loading="lazy">` : ''}</div>
+      <div>
+        <div class="t">${esc(h.title)}</div>
+        <div class="a">${esc(h.author)}</div>
+        ${h.why ? `<div class="why">${esc(h.why)}</div>` : ''}
+        <div class="meta">${esc(h.meta || '')}</div>
+      </div>
+      <div class="side">${h.url
+        ? `<button class="btn ${owned ? '' : 'primary'}" data-add="${esc(h.key)}" ${owned ? 'disabled' : ''}>${owned ? 'On shelf' : 'Add to shelf'}</button>`
+        : '<span class="note">No EPUB available</span>'}</div>
+    </div>`;
+  }).join('');
+  box.querySelectorAll('[data-add]').forEach(btn => btn.addEventListener('click', () => {
+    addRemote(hits.find(x => x.key === btn.dataset.add), btn);
+  }));
 }
-
-/* The location index powers the % and the slider. It costs seconds on a long book,
-   so build it once in the background, cache the JSON, and reuse it on later opens. */
-async function ensureLocations(book, bk) {
-  const done = () => { R.locsReady = true; $('#r-range').disabled = false; if (R.cur) updateProgress(R.cur); };
-  R.locsReady = false; $('#r-range').disabled = true;
+async function searchGutenberg(q) {
+  const box = $('#results');
+  box.innerHTML = '<div class="note">Searching…</div>';
   try {
-    const cached = await DB.get('locs', book.id);
-    if (cached?.json) { bk.locations.load(cached.json); done(); return; }
-  } catch {}
-  // Defer past the first paint so the reader is usable while this runs.
-  const start = () => {
-    if (R.book !== bk) return;
-    const t = performance.now();
-    bk.locations.generate(1600).then(async () => {
-      if (R.book !== bk) return;
-      try { await DB.put('locs', { id: book.id, json: bk.locations.save(), at: Date.now() }); } catch {}
-      console.debug('[shelfmark] index built', Math.round(performance.now() - t) + 'ms');
-      done();
-    }).catch(() => {});
-  };
-  'requestIdleCallback' in window ? requestIdleCallback(start, { timeout: 2500 }) : setTimeout(start, 600);
+    const r = await withTimeout(fetch(`${GUTENDEX}?search=${encodeURIComponent(q)}&mime_type=application%2Fepub`), 20000, 'Search');
+    if (!r.ok) throw new Error('Gutendex returned HTTP ' + r.status);
+    const j = await r.json();
+    renderHits(box, (j.results || []).map(gutHit));
+  } catch (e) { box.innerHTML = `<div class="empty">Search failed: ${esc(e.message)}</div>`; }
 }
-
-function flattenToc(items, depth = 0) {
-  return items.flatMap(i => [{ label: i.label.trim(), href: i.href, depth }, ...(i.subitems?.length ? flattenToc(i.subitems, depth + 1) : [])]);
-}
-function chapterFor(href) {
-  if (!href) return '';
-  const clean = href.split('#')[0];
-  const t = R.toc.find(i => i.href.split('#')[0] === clean || clean.endsWith(i.href.split('#')[0]));
-  return t ? t.label : '';
-}
-function updateProgress(loc) {
-  const bk = R.book;
-  let pct = bk.locations.length() ? bk.locations.percentageFromCfi(loc.start.cfi) : null;
-  $('#r-pct').textContent = pct == null ? (R.locsReady ? '—' : 'indexing…') : Math.round(pct * 100) + '%';
-  if (pct != null) $('#r-range').value = Math.round(pct * 1000);
-  $('#r-chapter').textContent = chapterFor(loc.start.href);
-  $('#r-left').textContent = pct == null ? '' : (loc.start.displayed ? `page ${loc.start.displayed.page} of ${loc.start.displayed.total} in chapter` : '');
-  const marked = R.current.bookmarks.some(b => b.cfi === loc.start.cfi);
-  $('#r-mark').classList.toggle('on', marked);
-}
-function onKey(e) {
-  if (!$('#reader').classList.contains('open')) return;
-  if (e.key === 'ArrowRight' || e.key === ' ') turn(R.current?.rtl ? 'prev' : 'next');
-  else if (e.key === 'ArrowLeft') turn(R.current?.rtl ? 'next' : 'prev');
-  else if (e.key === 'Escape') closeReader();
-}
-document.addEventListener('keyup', onKey);
-$('#tap-l').addEventListener('click', () => { closePanels(); turn(R.current?.rtl ? 'next' : 'prev'); });
-$('#tap-r').addEventListener('click', () => { closePanels(); turn(R.current?.rtl ? 'prev' : 'next'); });
-$('#r-range').addEventListener('change', e => {
-  if (isPaged(R.current)) { showPage(Math.round(e.target.value / 1000 * (C.pages.length - 1))); return; }
-  const bk = R.book; if (!bk?.locations.length()) return;
-  R.rendition.display(bk.locations.cfiFromPercentage(e.target.value / 1000));
+$('#q-go').addEventListener('click', () => { const q = $('#q').value.trim(); if (q) searchGutenberg(q); });
+$('#q').addEventListener('keydown', e => { if (e.key === 'Enter') $('#q-go').click(); });
+$('#url-go').addEventListener('click', async () => {
+  const url = $('#url-in').value.trim(); if (!url) return;
+  if (!/^https?:\/\//i.test(url)) { toast('That needs to be a full https:// link to a file'); return; }
+  const name = decodeURIComponent((url.split('/').pop() || 'book').split('?')[0])
+    .replace(/\.(epub|pdf|cbz)$/i, '').replace(/[-_]+/g, ' ').trim() || 'Book';
+  await addRemote({ key: 'url:' + url, title: name, author: '', url, source: 'Link' }, $('#url-go'));
+  $('#url-in').value = '';
 });
-
-/* ---- page turn: one entry point for both readers ---- */
-async function turn(dir) {
-  if (R.busy) return;
-  if (isPaged(R.current)) return turnComic(dir);
-  const rd = R.rendition; if (!rd) return;
-  if (!animOn() || R.flow !== 'paginated') return rd[dir]();
-  const v = $('#view'); R.busy = true;
+$('#rec-go').addEventListener('click', async () => {
+  const box = $('#rec-results'), btn = $('#rec-go');
+  btn.disabled = true; btn.textContent = 'Thinking…'; box.innerHTML = '';
   try {
-    // Lift the page away from the spine, swap content while it's edge-on, then settle the new page.
-    v.style.transformOrigin = dir === 'next' ? 'left center' : 'right center';
-    v.className = 'turn-out';
-    v.style.transform = `rotateY(${dir === 'next' ? -75 : 75}deg)`; v.style.filter = 'brightness(.7)';
-    await wait(220);
-    await rd[dir]();
-    v.className = '';
-    v.style.transformOrigin = dir === 'next' ? 'right center' : 'left center';
-    v.style.transform = `rotateY(${dir === 'next' ? 40 : -40}deg)`; v.style.filter = 'brightness(.85)';
-    void v.offsetWidth;
-    v.className = 'turn-in'; v.style.transform = 'rotateY(0deg)'; v.style.filter = 'none';
-    await wait(200);
-  } finally { v.className = ''; v.style.transform = ''; v.style.filter = ''; R.busy = false; }
-}
-
-/* =====================================================================
-   COMIC / MANGA READER (CBZ)
-   ===================================================================== */
-const C = { zip: null, pdf: null, pages: [], urls: new Map(), page: 0, fit: 'h', spread: 'auto' };
-
-async function openComic(book, f) {
-  if (book.kind === 'pdf') {
-    C.zip = null; C.pdf = await pdfjsLib.getDocument({ data: f.data.slice(0) }).promise;
-    C.pages = Array.from({ length: C.pdf.numPages }, (_, i) => i);
-  } else {
-    C.pdf = null; C.zip = await JSZip.loadAsync(f.data);
-    C.pages = Object.keys(C.zip.files).filter(n => !C.zip.files[n].dir && IMG_RE.test(n) && !/__MACOSX|\/\./.test(n)).sort(natural);
-  }
-  C.urls.forEach(u => URL.revokeObjectURL(u)); C.urls.clear();
-  C.fit = Settings.get('cfit_' + book.kind, book.kind === 'pdf' ? 'w' : 'h'); C.spread = Settings.get('cspread', 'auto');
-  $('#comic').className = 'fit-' + C.fit;
-  syncReaderControls(); renderToc();
-  await showPage(Math.min(book.page || 0, C.pages.length - 1));
-  setLoading('');
-}
-async function pageURL(i) {
-  if (C.urls.has(i)) return C.urls.get(i);
-  const blob = C.pdf ? await renderPdfPage(C.pdf, i) : await C.zip.file(C.pages[i]).async('blob');
-  const u = URL.createObjectURL(blob); C.urls.set(i, u); return u;
-}
-function isDouble() {
-  if (C.spread !== 'auto' || C.fit !== 'h') return false;
-  const st = $('#stage'); return st.clientWidth > st.clientHeight * 1.15;
-}
-function spreadFor(p) {
-  const n = C.pages.length;
-  if (!isDouble() || p === 0) return [p];
-  const a = p % 2 === 1 ? p : p - 1;
-  return [a, a + 1].filter(x => x < n);
-}
-async function showPage(p, opts = {}) {
-  p = Math.max(0, Math.min(C.pages.length - 1, p));
-  const pages = spreadFor(p); C.page = pages[0];
-  const order = R.current.rtl ? [...pages].reverse() : pages;
-  const urls = await Promise.all(order.map(pageURL));
-  const sp = $('#spread'); sp.classList.toggle('double', pages.length > 1);
-  sp.innerHTML = urls.map((u, i) => `<img src="${u}" alt="Page ${order[i] + 1}" draggable="false">`).join('');
-  if (C.fit === 'w') $('#comic').scrollTop = 0;
-  // preload neighbours
-  [pages[pages.length - 1] + 1, pages[pages.length - 1] + 2, pages[0] - 1].forEach(i => { if (i >= 0 && i < C.pages.length) pageURL(i); });
-  updateComicProgress(); offerPlace();
-  const b = R.current; b.page = C.page; b.lastReadAt = Date.now();
-  b.pct = C.pages.length > 1 ? pages[pages.length - 1] / (C.pages.length - 1) : 1;
-  if (pages[pages.length - 1] >= C.pages.length - 1) { b.pct = 1; b.finished = true; }
-  clearTimeout(R.saveT); R.saveT = setTimeout(() => DB.put('books', b), 300);
-}
-function updateComicProgress() {
-  const n = C.pages.length, pages = spreadFor(C.page), last = pages[pages.length - 1];
-  $('#r-pct').textContent = Math.round(last / Math.max(1, n - 1) * 100) + '%';
-  $('#r-range').value = Math.round(C.page / Math.max(1, n - 1) * 1000);
-  $('#r-left').textContent = pages.length > 1 ? `pages ${pages[0] + 1}–${last + 1} of ${n}` : `page ${C.page + 1} of ${n}`;
-  $('#r-chapter').textContent = '';
-  $('#r-mark').classList.toggle('on', R.current.bookmarks.some(m => m.page === C.page));
-}
-async function turnComic(dir) {
-  const pages = spreadFor(C.page);
-  const target = dir === 'next' ? pages[pages.length - 1] + 1 : C.page - 1;
-  if (target < 0 || target >= C.pages.length) { if (target >= C.pages.length) toast('Last page'); return; }
-  if (!animOn() || C.fit === 'w') return showPage(target);
-  R.busy = true;
-  try {
-    // Physical flip: the outgoing spread becomes a leaf hinged at the spine-side edge and rotates over the incoming page.
-    const rtl = !!R.current.rtl;
-    const hingeLeft = dir === 'next' ? !rtl : rtl;   // LTR next: page lifts from the right, hinge on the left
-    const sp = $('#spread');
-    const leaf = document.createElement('div');
-    leaf.className = 'leaf ' + (hingeLeft ? 'hinge-l' : 'hinge-r');
-    leaf.style.width = '100%';
-    leaf.innerHTML = sp.innerHTML;
-    // if a double spread, the leaf is just the outer page so the inner one stays put
-    const imgs = leaf.querySelectorAll('img');
-    if (imgs.length > 1) {
-      (hingeLeft ? imgs[0] : imgs[1]).remove(); leaf.style.width = '50%'; leaf.querySelector('img').style.maxWidth = '100%';
-      leaf.style[hingeLeft ? 'left' : 'right'] = '50%';   // hinge sits on the spine
-    }
-    $('#comic').appendChild(leaf);
-    await showPage(target);
-    void leaf.offsetWidth; leaf.classList.add('flip');
-    await wait(430); leaf.remove();
-  } finally { R.busy = false; }
-}
-window.addEventListener('resize', () => { if (isPaged(R.current) && $('#reader').classList.contains('open')) showPage(C.page); });
-$$('#c-dir button').forEach(b => b.addEventListener('click', async () => {
-  R.current.rtl = b.dataset.d === 'rtl'; await DB.put('books', R.current); syncReaderControls(); showPage(C.page);
-}));
-$$('#c-fit button').forEach(b => b.addEventListener('click', () => {
-  C.fit = b.dataset.f; Settings.set('cfit_' + R.current.kind, C.fit); $('#comic').className = 'fit-' + C.fit; syncReaderControls(); showPage(C.page);
-}));
-$$('#c-spread button').forEach(b => b.addEventListener('click', () => {
-  C.spread = b.dataset.s; Settings.set('cspread', C.spread); syncReaderControls(); showPage(C.page);
-}));
-// swipe on the comic stage (no iframe here, so plain listeners work)
-(() => {
-  let sx = null, sy = null; const el = $('#comic');
-  el.addEventListener('touchstart', e => { sx = e.changedTouches[0].clientX; sy = e.changedTouches[0].clientY; }, { passive: true });
-  el.addEventListener('touchend', e => {
-    if (sx === null) return; const dx = e.changedTouches[0].clientX - sx, dy = e.changedTouches[0].clientY - sy; sx = sy = null;
-    if (Math.abs(dx) > 60 && Math.abs(dy) < 80) { closePanels(); const rtl = !!R.current?.rtl; turn((dx < 0) !== rtl ? 'next' : 'prev'); }
-  }, { passive: true });
-})();
-
-async function closeReader() {
-  clearTimeout(R.saveT);
-  if (isPaged(R.current)) {
-    await DB.put('books', R.current);
-    C.urls.forEach(u => URL.revokeObjectURL(u)); C.urls.clear(); C.zip = null; try { C.pdf?.destroy(); } catch {} C.pdf = null; C.pages = []; $('#spread').innerHTML = '';
-    R.current = null; $('#reader').classList.remove('open', 'comic'); renderShelf(); return;
-  }
-  if (R.cur && R.current) {
-    R.current.cfi = R.cur.start.cfi; R.current.lastReadAt = Date.now();
-    if (R.book.locations.length()) R.current.pct = R.book.locations.percentageFromCfi(R.cur.start.cfi) || R.current.pct;
-    await DB.put('books', R.current);
-  }
-  try { R.rendition?.destroy(); R.book?.destroy(); } catch {}
-  R.rendition = R.book = R.cur = null; $('#view').innerHTML = '';
-  $('#reader').classList.remove('open'); renderShelf();
-}
-$('#r-back').addEventListener('click', closeReader);
-
-/* ---- saved place: one explicit "I'm here" marker per book, separate from auto-resume ---- */
-function placeLabel(pl) { return `${Math.round((pl.pct || 0) * 100)}%${pl.chapter ? ' · ' + pl.chapter : pl.page != null ? ' · page ' + (pl.page + 1) : ''}`; }
-function atPlace() {
-  const pl = R.current?.place; if (!pl) return false;
-  return isPaged(R.current) ? pl.page === C.page : R.cur && pl.cfi === R.cur.start.cfi;
-}
-function offerPlace() {
-  const pl = R.current?.place; if (!pl || R.placeOffered) return;
-  R.placeOffered = true;
-  if (atPlace()) return;
-  $('#place-text').textContent = 'Your saved place: ' + placeLabel(pl);
-  $('#place-chip').classList.add('show');
-  clearTimeout(R.chipT); R.chipT = setTimeout(() => $('#place-chip').classList.remove('show'), 9000);
-}
-function goToPlace() {
-  const pl = R.current?.place; if (!pl) return;
-  $('#place-chip').classList.remove('show');
-  if (isPaged(R.current)) showPage(pl.page); else R.rendition?.display(pl.cfi);
-}
-$('#place-go').addEventListener('click', goToPlace);
-$('#place-x').addEventListener('click', () => $('#place-chip').classList.remove('show'));
-$('#r-place').addEventListener('click', async () => {
-  const b = R.current; if (!b) return;
-  if (isPaged(b)) {
-    b.place = { page: C.page, pct: C.page / Math.max(1, C.pages.length - 1), at: Date.now() };
-  } else {
-    if (!R.cur) return;
-    const cfi = R.cur.start.cfi;
-    b.place = { cfi, pct: R.book.locations.length() ? R.book.locations.percentageFromCfi(cfi) : b.pct, chapter: chapterFor(R.cur.start.href), at: Date.now() };
-  }
-  await DB.put('books', b);
-  $('#r-place').classList.add('on'); setTimeout(() => $('#r-place').classList.remove('on'), 900);
-  toast('Place saved at ' + placeLabel(b.place));
+    const history = S.books.map(b => ({ title: b.title, author: b.author, progress: Math.round((b.pct || 0) * 100), finished: b.finished }));
+    const loans = S.loans.map(l => ({ title: l.title, author: l.author }));
+    const r = await withTimeout(fetch('/api/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ history, loans, mood: $('#rec-mood').value.trim() }) }), 45000, 'Recommendations');
+    const payload = await r.json().catch(() => ({}));
+    if (!r.ok) throw new Error(payload.detail || payload.error || ('HTTP ' + r.status));
+    const recs = payload.recommendations || [];
+    if (!recs.length) throw new Error('No suggestions came back');
+    box.innerHTML = '<div class="note">Finding downloadable copies…</div>';
+    const hits = await Promise.all(recs.map(async rec => {
+      try {
+        const j = await (await fetch(`${GUTENDEX}?search=${encodeURIComponent(rec.search || (rec.title + ' ' + rec.author))}&mime_type=application%2Fepub`)).json();
+        if (j.results?.[0]) return { ...gutHit(j.results[0]), why: rec.why };
+      } catch {}
+      return { key: 'rec:' + rec.title, title: rec.title, author: rec.author, why: rec.why,
+        meta: 'Not on Gutenberg — try Standard Ebooks', url: null };
+    }));
+    renderHits(box, hits);
+  } catch (e) {
+    box.innerHTML = `<div class="empty">${esc(e.message)}</div>`;
+  } finally { btn.disabled = false; btn.textContent = 'Ask for suggestions'; }
 });
-
-/* bookmarks + toc panel */
-$('#r-mark').addEventListener('click', async () => {
-  if (isPaged(R.current)) {
-    const b = R.current, i = b.bookmarks.findIndex(m => m.page === C.page);
-    if (i >= 0) { b.bookmarks.splice(i, 1); toast('Bookmark removed'); } else { b.bookmarks.push({ page: C.page, at: Date.now() }); toast(`Bookmarked page ${C.page + 1}`); }
-    await DB.put('books', b); updateComicProgress(); renderToc(); return;
-  }
-  if (!R.cur) return;
-  const cfi = R.cur.start.cfi, b = R.current;
-  const i = b.bookmarks.findIndex(x => x.cfi === cfi);
-  if (i >= 0) { b.bookmarks.splice(i, 1); toast('Bookmark removed'); }
-  else {
-    let snippet = '';
-    try { const range = await R.book.getRange(cfi); snippet = (range?.toString() || '').trim().slice(0, 60); } catch {}
-    b.bookmarks.push({ cfi, chapter: chapterFor(R.cur.start.href), snippet, at: Date.now(),
-      pct: R.book.locations.length() ? R.book.locations.percentageFromCfi(cfi) : null });
-    toast('Bookmarked');
-  }
-  await DB.put('books', b); updateProgress(R.cur); renderToc();
-});
-function renderToc() {
-  const b = R.current;
-  if (isPaged(b)) {
-    const bms = [...b.bookmarks].sort((x, y) => x.page - y.page);
-    $('#bm-list').innerHTML = bms.length ? bms.map(m => `<button class="item" data-page="${m.page}"><span>Page ${m.page + 1}</span><small>${Math.round(m.page / Math.max(1, C.pages.length - 1) * 100)}%</small></button>`).join('')
-      : '<div class="note">No bookmarks. Tap the ribbon icon to mark a page.</div>';
-    $('#toc-list').innerHTML = `<div class="note">${C.pages.length} pages. Drag the slider at the bottom to jump.</div>`;
-    $('#p-toc').querySelectorAll('[data-page]').forEach(x => x.addEventListener('click', () => { showPage(+x.dataset.page); closePanels(); }));
-    return;
-  }
-  $('#bm-list').innerHTML = b.bookmarks.length ? b.bookmarks.map((m, i) => `
-    <button class="item" data-cfi="${esc(m.cfi)}">
-      <span>${esc(m.chapter || 'Bookmark')}${m.snippet ? `<br><small>${esc(m.snippet)}…</small>` : ''}</span>
-      <small>${m.pct != null ? Math.round(m.pct * 100) + '%' : ''}</small>
-    </button>`).join('') : '<div class="note">No bookmarks in this book. Tap the ribbon icon to add one.</div>';
-  $('#toc-list').innerHTML = R.toc.map(t => `<button class="item ${t.depth ? 'sub' : ''}" data-href="${esc(t.href)}"><span>${esc(t.label)}</span></button>`).join('');
-  $('#p-toc').querySelectorAll('[data-cfi]').forEach(x => x.addEventListener('click', () => { R.rendition.display(x.dataset.cfi); closePanels(); }));
-  $('#p-toc').querySelectorAll('[data-href]').forEach(x => x.addEventListener('click', () => { R.rendition.display(x.dataset.href); closePanels(); }));
-}
-function closePanels() { $$('.panel').forEach(p => p.classList.remove('open')); }
-function togglePanel(id) { const p = $(id), was = p.classList.contains('open'); closePanels(); if (!was) p.classList.add('open'); }
-$('#r-toc').addEventListener('click', () => togglePanel('#p-toc'));
-$('#r-aa').addEventListener('click', () => togglePanel('#p-aa'));
-
-/* text settings */
-function syncReaderControls() {
-  $$('#c-dir button').forEach(b => b.classList.toggle('on', (b.dataset.d === 'rtl') === !!R.current?.rtl));
-  $$('#c-fit button').forEach(b => b.classList.toggle('on', b.dataset.f === C.fit));
-  $$('#c-spread button').forEach(b => b.classList.toggle('on', b.dataset.s === C.spread));
-  $$('#r-theme button').forEach(b => b.classList.toggle('on', b.dataset.t === R.theme));
-  $$('#r-lh button').forEach(b => b.classList.toggle('on', b.dataset.l === R.lh));
-  $$('#r-flow button').forEach(b => b.classList.toggle('on', b.dataset.f === R.flow));
-}
-$$('#r-theme button').forEach(b => b.addEventListener('click', () => {
-  R.theme = b.dataset.t; $('#reader').dataset.rtheme = R.theme; R.rendition?.themes.select(R.theme); Settings.set('rtheme', R.theme); syncReaderControls();
-}));
-$('#fs-minus').addEventListener('click', () => setFont(R.fontSize - 10));
-$('#fs-plus').addEventListener('click', () => setFont(R.fontSize + 10));
-function setFont(v) { R.fontSize = Math.min(220, Math.max(70, v)); R.rendition?.themes.fontSize(R.fontSize + '%'); Settings.set('fontSize', R.fontSize); }
-$$('#r-lh button').forEach(b => b.addEventListener('click', () => {
-  R.lh = b.dataset.l; R.rendition?.themes.override('line-height', R.lh); Settings.set('lh', R.lh); syncReaderControls();
-}));
-$$('#r-flow button').forEach(b => b.addEventListener('click', async () => {
-  if (b.dataset.f === R.flow) return;
-  await Settings.set('flow', b.dataset.f);
-  const id = R.current.id; await closeReader(); openReader(id);
-}));
 
 /* =====================================================================
    LOANS
@@ -1504,8 +1729,7 @@ function loanState(l) {
   return d < 0 ? 'overdue' : d <= 3 ? 'due-soon' : 'active';
 }
 function stampText(l) {
-  const st = loanState(l);
-  if (st === 'returned') return 'Returned';
+  if (l.status === 'returned') return 'Returned';
   const d = daysUntil(l.due);
   if (d < 0) return `${-d} day${d === -1 ? '' : 's'} overdue`;
   if (d === 0) return 'Due today';
@@ -1513,78 +1737,89 @@ function stampText(l) {
   return `Due in ${d} days`;
 }
 function renderLoans() {
-  const list = S.loans
-    .filter(l => S.loanFilter === 'returned' ? l.status === 'returned' : l.status !== 'returned')
+  const list = S.loans.filter(l => S.loanFilter === 'returned' ? l.status === 'returned' : l.status !== 'returned')
     .sort((a, b) => a.due.localeCompare(b.due));
   $('#loans-empty').style.display = list.length ? 'none' : '';
   $('#loans').innerHTML = list.map(l => {
     const st = loanState(l);
-    return `<div class="slip ${st === 'overdue' ? 'overdue' : ''} ${st === 'returned' ? 'returned' : ''}" data-id="${l.id}">
+    return `<div class="slip ${st === 'overdue' ? 'overdue' : ''} ${st === 'returned' ? 'returned' : ''}">
       <div class="head">
-        <div><div class="title">${esc(l.title)}</div><div class="src">${esc(l.author || '')}${l.author ? ' · ' : ''}${esc(l.source)}</div></div>
+        <div><div class="title">${esc(l.title)}</div>
+        <div class="src">${esc(l.author || '')}${l.author ? ' · ' : ''}${esc(l.source)}</div></div>
         <span class="stamp ${st}">${stampText(l)}</span>
       </div>
       <div class="dates">
         <div class="d"><small>Checked out</small><b>${fmtDate(l.out)}</b></div>
         <div class="d"><small>Due</small><b>${fmtDate(l.due)}</b></div>
       </div>
-      ${l.notes ? `<div class="note" style="background:var(--surface);padding:2px 0">${esc(l.notes)}</div>` : ''}
+      ${l.notes ? `<div class="note">${esc(l.notes)}</div>` : ''}
       <div class="foot">
-        ${l.status !== 'returned' ? `<button class="btn" data-return="${l.id}">Returned</button>
-        <button class="btn quiet" data-renew="${l.id}">Renew +${l.source === 'Library' ? 21 : 14}d</button>` : `<button class="btn quiet" data-unreturn="${l.id}">Still out</button>`}
+        ${l.status !== 'returned'
+          ? `<button class="btn" data-return="${l.id}">Returned</button>
+             <button class="btn quiet" data-renew="${l.id}">Renew +${l.source === 'Library' ? 21 : 14}d</button>`
+          : `<button class="btn quiet" data-unreturn="${l.id}">Still out</button>`}
         <button class="btn quiet" data-edit="${l.id}">Edit</button>
         <button class="btn quiet danger" data-del="${l.id}">Delete</button>
-      </div>
-    </div>`;
+      </div></div>`;
   }).join('');
   const L = id => S.loans.find(l => l.id === id);
   const save = async l => { await DB.put('loans', l); renderLoans(); updateCounts(); };
-  $$('[data-return]').forEach(b => b.onclick = () => { const l = L(b.dataset.return); l.status = 'returned'; l.returnedAt = todayISO(); save(l); toast('Marked returned'); });
+  $$('[data-return]').forEach(b => b.onclick = () => { const l = L(b.dataset.return); l.status = 'returned'; save(l); toast('Marked returned'); });
   $$('[data-unreturn]').forEach(b => b.onclick = () => { const l = L(b.dataset.unreturn); l.status = 'active'; save(l); });
   $$('[data-renew]').forEach(b => b.onclick = () => {
-    const l = L(b.dataset.renew); const n = l.source === 'Library' ? 21 : 14;
+    const l = L(b.dataset.renew), n = l.source === 'Library' ? 21 : 14;
     const base = new Date(Math.max(new Date(l.due + 'T00:00:00'), new Date(todayISO() + 'T00:00:00')));
-    base.setDate(base.getDate() + n); l.due = base.toISOString().slice(0, 10); l.renewals = (l.renewals || 0) + 1; save(l); toast(`Renewed to ${fmtDate(l.due)}`);
+    base.setDate(base.getDate() + n);
+    l.due = base.toISOString().slice(0, 10); save(l); toast('Renewed to ' + fmtDate(l.due));
   });
   $$('[data-edit]').forEach(b => b.onclick = () => openLoanDialog(L(b.dataset.edit)));
   $$('[data-del]').forEach(b => b.onclick = async () => {
-    const l = L(b.dataset.del); if (!confirm(`Delete the loan for “${l.title}”?`)) return;
+    const l = L(b.dataset.del);
+    if (!confirm(`Delete the loan for “${l.title}”?`)) return;
     await DB.del('loans', l.id); S.loans = S.loans.filter(x => x.id !== l.id); renderLoans(); updateCounts();
   });
 }
 $$('#loan-filter button').forEach(b => b.addEventListener('click', () => {
-  $$('#loan-filter button').forEach(x => x.classList.toggle('on', x === b)); S.loanFilter = b.dataset.f; renderLoans();
+  $$('#loan-filter button').forEach(x => x.classList.toggle('on', x === b));
+  S.loanFilter = b.dataset.f; renderLoans();
 }));
-
-/* loan dialog with Open Library lookup */
 const dlg = $('#loan-dlg');
 function openLoanDialog(l) {
   $('#loan-dlg-title').textContent = l ? 'Edit loan' : 'Add a loan';
   $('#l-id').value = l?.id || ''; $('#l-title').value = l?.title || ''; $('#l-author').value = l?.author || '';
   $('#l-source').value = l?.source || 'Library'; $('#l-notes').value = l?.notes || ''; $('#l-cover').value = l?.cover || '';
-  const out = l?.out || todayISO(); $('#l-out').value = out;
-  if (l) $('#l-due').value = l.due; else { const d = new Date(out + 'T00:00:00'); d.setDate(d.getDate() + 21); $('#l-due').value = d.toISOString().slice(0, 10); }
-  $('#ol-hits').innerHTML = ''; dlg.showModal(); $('#l-title').focus();
+  const out = l?.out || todayISO();
+  $('#l-out').value = out;
+  if (l) $('#l-due').value = l.due;
+  else { const d = new Date(out + 'T00:00:00'); d.setDate(d.getDate() + 21); $('#l-due').value = d.toISOString().slice(0, 10); }
+  $('#ol-hits').innerHTML = '';
+  dlg.showModal(); $('#l-title').focus();
 }
 $('#loan-add').addEventListener('click', () => openLoanDialog(null));
 $('#loan-cancel').addEventListener('click', () => dlg.close());
 $('#l-source').addEventListener('change', () => {
   if ($('#l-id').value) return;
-  const d = new Date($('#l-out').value + 'T00:00:00'); d.setDate(d.getDate() + ($('#l-source').value === 'Library' ? 21 : 14)); $('#l-due').value = d.toISOString().slice(0, 10);
+  const d = new Date($('#l-out').value + 'T00:00:00');
+  d.setDate(d.getDate() + ($('#l-source').value === 'Library' ? 21 : 14));
+  $('#l-due').value = d.toISOString().slice(0, 10);
 });
 let olT;
 $('#l-title').addEventListener('input', () => {
-  clearTimeout(olT); const q = $('#l-title').value.trim();
+  clearTimeout(olT);
+  const q = $('#l-title').value.trim();
   if (q.length < 3) { $('#ol-hits').innerHTML = ''; return; }
   olT = setTimeout(async () => {
     try {
       const j = await (await fetch(`https://openlibrary.org/search.json?q=${encodeURIComponent(q)}&limit=6&fields=title,author_name,cover_i`)).json();
       $('#ol-hits').innerHTML = (j.docs || []).map((d, i) => `<button type="button" data-i="${i}">
-        ${d.cover_i ? `<img src="https://covers.openlibrary.org/b/id/${d.cover_i}-S.jpg" alt="">` : '<span style="width:28px;height:42px;background:var(--raised);border-radius:2px;display:inline-block"></span>'}
+        ${d.cover_i ? `<img src="https://covers.openlibrary.org/b/id/${d.cover_i}-S.jpg" alt="">`
+          : '<span style="width:28px;height:42px;background:var(--raised);border-radius:2px;display:inline-block"></span>'}
         <span><b>${esc(d.title)}</b><br><span class="note">${esc((d.author_name || []).slice(0, 2).join(', '))}</span></span></button>`).join('');
       $('#ol-hits').querySelectorAll('button').forEach(b => b.addEventListener('click', () => {
-        const d = j.docs[b.dataset.i]; $('#l-title').value = d.title; $('#l-author').value = (d.author_name || [])[0] || '';
-        $('#l-cover').value = d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : ''; $('#ol-hits').innerHTML = '';
+        const d = j.docs[b.dataset.i];
+        $('#l-title').value = d.title; $('#l-author').value = (d.author_name || [])[0] || '';
+        $('#l-cover').value = d.cover_i ? `https://covers.openlibrary.org/b/id/${d.cover_i}-M.jpg` : '';
+        $('#ol-hits').innerHTML = '';
       }));
     } catch {}
   }, 350);
@@ -1596,130 +1831,229 @@ $('#loan-form').addEventListener('submit', async e => {
   const l = { ...(existing || { status: 'active', createdAt: Date.now() }), id,
     title: $('#l-title').value.trim(), author: $('#l-author').value.trim(), source: $('#l-source').value,
     out: $('#l-out').value, due: $('#l-due').value, notes: $('#l-notes').value.trim(), cover: $('#l-cover').value };
-  if (l.due < l.out) { toast('Due date is before the checkout date'); return; }
+  if (l.due < l.out) { toast('The due date is before the checkout date'); return; }
   await DB.put('loans', l);
   if (existing) Object.assign(existing, l); else S.loans.push(l);
-  dlg.close(); renderLoans(); updateCounts(); toast(existing ? 'Loan updated' : 'Loan added');
+  dlg.close(); renderLoans(); updateCounts();
+  toast(existing ? 'Loan updated' : 'Loan added');
 });
-
-/* notifications: in-app + browser, no server */
 async function refreshNotifButton() {
   const b = $('#notif-btn');
   if (!('Notification' in window)) { b.style.display = 'none'; return; }
-  b.textContent = Notification.permission === 'granted' ? 'Reminders on' : Notification.permission === 'denied' ? 'Reminders blocked' : 'Remind me';
+  b.textContent = Notification.permission === 'granted' ? 'Reminders on'
+    : Notification.permission === 'denied' ? 'Reminders blocked' : 'Remind me';
   b.disabled = Notification.permission !== 'default';
 }
 $('#notif-btn').addEventListener('click', async () => {
-  const p = await Notification.requestPermission(); refreshNotifButton();
-  if (p === 'granted') { toast('You’ll get a reminder when a loan is due within 3 days'); checkDueNotifications(true); }
+  const p = await Notification.requestPermission();
+  refreshNotifButton();
+  if (p === 'granted') { toast('You’ll be reminded when a loan is due within 3 days'); checkDue(true); }
 });
-async function checkDueNotifications(force) {
+async function checkDue(force) {
   if (!('Notification' in window) || Notification.permission !== 'granted') return;
-  const last = Settings.get('lastNotif', ''); if (!force && last === todayISO()) return;
+  if (!force && Settings.get('lastNotif', '') === todayISO()) return;
   const soon = S.loans.filter(l => l.status !== 'returned' && daysUntil(l.due) <= 3);
   if (!soon.length) return;
   const body = soon.map(l => `${l.title} — ${stampText(l).toLowerCase()}`).join('\n');
-  const opts = { body, tag: 'shelfmark-due', icon: $('link[rel=icon]').href };
-  try { const reg = await navigator.serviceWorker?.getRegistration(); if (reg) reg.showNotification('Library books due', opts); else new Notification('Library books due', opts); } catch {}
+  try {
+    const reg = await navigator.serviceWorker?.getRegistration();
+    const opts = { body, tag: 'shelfmark-due' };
+    if (reg) reg.showNotification('Library books due', opts); else new Notification('Library books due', opts);
+  } catch {}
   Settings.set('lastNotif', todayISO());
 }
-
 /* =====================================================================
-   DATA: export / import / wipe
+   TABS, DATA, SELF-TEST, BOOT
    ===================================================================== */
+function showTab(name) {
+  $$('.rail .tab').forEach(b => b.classList.toggle('active', b.dataset.tab === name));
+  $$('main > section').forEach(s => s.classList.toggle('active', s.id === 'tab-' + name));
+  $('main').scrollTop = 0;
+}
+$$('.rail .tab').forEach(b => b.addEventListener('click', () => showTab(b.dataset.tab)));
+
+function applyAppTheme(t) {
+  document.documentElement.dataset.theme = t;
+  $('meta[name=theme-color]').content = t === 'day' ? '#E3E7D8' : '#25281F';
+  $$('#app-theme button').forEach(b => b.classList.toggle('on', b.dataset.t === t));
+}
+$$('#app-theme button').forEach(b => b.addEventListener('click', () => { applyAppTheme(b.dataset.t); Settings.set('theme', b.dataset.t); }));
+function syncAnim() { $$('#anim-set button').forEach(b => b.classList.toggle('on', b.dataset.a == Settings.get('anim', 1))); }
+$$('#anim-set button').forEach(b => b.addEventListener('click', () => { Settings.set('anim', +b.dataset.a); syncAnim(); }));
+
+/* ---------- export / import / wipe ---------- */
 $('#export').addEventListener('click', () => {
-  const data = { app: 'shelfmark', version: 1, exportedAt: new Date().toISOString(),
-    books: S.books.map(({ id, key, kind, title, author, source, url, cfi, pct, page, pages, rtl, place, bookmarks, finished, addedAt, lastReadAt }) => ({ id, key, kind, title, author, source, url, cfi, pct, page, pages, rtl, place, bookmarks, finished, addedAt, lastReadAt })),
+  const data = { app: 'shelfmark', version: 2, exportedAt: new Date().toISOString(),
+    books: S.books.map(({ id, key, kind, title, author, source, url, pct, pos, pages, rtl, place, bookmarks, finished, addedAt, lastReadAt }) =>
+      ({ id, key, kind, title, author, source, url, pct, pos, pages, rtl, place, bookmarks, finished, addedAt, lastReadAt })),
     loans: S.loans, settings: Settings.cache };
   const a = document.createElement('a');
   a.href = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
-  a.download = `shelfmark-${todayISO()}.json`; a.click(); URL.revokeObjectURL(a.href);
+  a.download = 'shelfmark-' + todayISO() + '.json';
+  a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 5000);
 });
 $('#import').addEventListener('change', async e => {
-  const f = e.target.files[0]; if (!f) return;
+  const f = e.target.files[0]; e.target.value = ''; if (!f) return;
   try {
-    const d = JSON.parse(await f.text()); if (d.app !== 'shelfmark') throw 0;
-    for (const l of d.loans || []) { await DB.put('loans', l); if (!S.loans.some(x => x.id === l.id)) S.loans.push(l); else Object.assign(S.loans.find(x => x.id === l.id), l); }
-    let refetch = 0;
+    const d = JSON.parse(await f.text());
+    if (d.app !== 'shelfmark') throw new Error('not a Shelfmark export');
+    for (const l of d.loans || []) {
+      await DB.put('loans', l);
+      const have = S.loans.find(x => x.id === l.id);
+      if (have) Object.assign(have, l); else S.loans.push(l);
+    }
+    let refetched = 0;
     for (const b of d.books || []) {
       const have = S.books.find(x => x.id === b.id || x.key === b.key);
-      if (have) { Object.assign(have, { cfi: b.cfi, pct: b.pct, page: b.page, rtl: b.rtl, place: b.place, bookmarks: b.bookmarks, finished: b.finished }); await DB.put('books', have); }
-      else if (b.url) { refetch++; await addBook({ key: b.key, title: b.title, author: b.author, url: b.url, source: b.source }).then(async () => {
-        const nb = S.books.find(x => x.key === b.key); if (nb) { Object.assign(nb, { cfi: b.cfi, pct: b.pct, bookmarks: b.bookmarks, finished: b.finished }); await DB.put('books', nb); } }); }
+      if (have) {
+        Object.assign(have, { pct: b.pct, pos: b.pos, place: b.place, bookmarks: b.bookmarks || [], finished: b.finished, rtl: b.rtl });
+        await DB.put('books', have);
+      } else if (b.url) {
+        try { await addRemote({ key: b.key, title: b.title, author: b.author, url: b.url, source: b.source });
+          const nb = S.books.find(x => x.key === b.key);
+          if (nb) { Object.assign(nb, { pct: b.pct, pos: b.pos, place: b.place, bookmarks: b.bookmarks || [], finished: b.finished });
+            await DB.put('books', nb); refetched++; }
+        } catch {}
+      }
     }
     for (const [k, v] of Object.entries(d.settings || {})) await Settings.set(k, v);
-    applyAppTheme(Settings.get('theme', 'night'));
+    applyAppTheme(Settings.get('theme', 'night')); syncAnim();
     renderShelf(); renderLoans(); updateCounts(); updateStorageNote();
-    toast(`Imported ${d.loans?.length || 0} loans and ${d.books?.length || 0} books${refetch ? ` (${refetch} re-downloaded)` : ''}`);
-  } catch { toast('That file is not a Shelfmark export'); }
-  e.target.value = '';
+    toast('Imported ' + (d.loans?.length || 0) + ' loans, ' + (d.books?.length || 0) + ' books' + (refetched ? ' (' + refetched + ' re-downloaded)' : ''));
+  } catch (err) { toast('Import failed: ' + err.message); }
 });
 $('#wipe').addEventListener('click', async () => {
-  if (!confirm('Delete all books, files, loans, and settings from this device?')) return;
-  for (const s of ['books', 'files', 'loans', 'settings', 'locs', 'parts']) await DB.clear(s);
-  S.books = []; S.loans = []; Settings.cache = {}; renderShelf(); renderLoans(); updateCounts(); updateStorageNote(); toast('Everything deleted');
+  if (!confirm('Delete all books, files, loans and settings from this device?')) return;
+  for (const [n] of STORES) { try { await DB.clear(n); } catch {} }
+  coverCache.forEach(u => u && URL.revokeObjectURL(u)); coverCache.clear();
+  S.books = []; S.loans = []; Settings.cache = {};
+  renderShelf(); renderLoans(); updateCounts(); updateStorageNote();
+  toast('Everything deleted');
 });
 
-/* =====================================================================
-   BOOT
-   ===================================================================== */
-function bootError(msg) {
-  const bar = $('#bootbar'); if (!bar) return;
-  $('#bootbar-text').textContent = msg;
-  bar.classList.add('show');
-  console.error('[shelfmark]', msg);
+/* ---------- self-test: a real EPUB, built in memory, opened end to end ---------- */
+const TEST_EPUB_B64 = 'UEsDBBQAAAAAAAAAIQBvYassFAAAABQAAAAIAAAAbWltZXR5cGVhcHBsaWNhdGlvbi9lcHViK3ppcFBLAwQUAAAACAARg0ldQcGqLZwAAADfAAAAFgAAAE1FVEEtSU5GL2NvbnRhaW5lci54bWxVjkEKwjAQRfeeImQrbXQbmgiCawVPMKZTDSYzIUlFb290UXQ38P97f4bdMwbxwFw8k5HbfiN3djU4pgqeMP9HopWpGDln0gzFF00QsejqNCekkd0ckar+1vQikc2YmevkAxa7nGKaQ+gS1JuRx8P+dFYfovE9p0mKiKOHrr4SGgkpBe+gtk8U4yWVhrk7XHHdpqSyg/rxq2XYvgFQSwMEFAAAAAgAEYNJXQphyA9lAQAA/QIAABEAAABPRUJQUy9jb250ZW50Lm9wZp2SS3LbMAyG9z0Fh9uOBctddMZjKZMTdNFcgCEhCROSYkkodm4fiH7Ubjed7sAf/D/iwcPTKXj1jrnQHDvdNlv91H85JGPfzIhKkrF0emJOe4Dj8diQS0Mz5xF22+13mNOgf7u/iVstkX4tuCGHkWkgzJ1+JacFGpCNM2zO1L2zN3Basq9QZwE9BrEWaJsWVpuzeyb22L9MqF6wsPoxqJ8T+iGY/HaAW369aTMannP/3Kjnhac51/xVrTBv4rhIcz3Gmryda4EqmoCdtrN0pZWdI0sxl/OGwqihP8C1k7UpE2mQoiQkxqDIdTqad62mjEMNm9PEwWsV0JHZ8EcSvEnJkzUsY4Oa/npar6Q8J8xMWM4QuKfa9gplPDHYqf138iNo9wdo97+gUq6kwh8emyrcQ84PiProuw3z4pYQqtikOD4SKMhqYJVXBNyNuySKsrSVKhABV5RMCf4Wd3VtFwdcfnf/CVBLAwQUAAAACAARg0ldbsKIyagAAAAFAQAADwAAAE9FQlBTL25hdi54aHRtbG2OQQ6DIBRE9z0F4QB8tYtG88VFD9BNL4CKxcQCQSp6+4IumjbdzGLmTWawWZ8TWaSbR6NrmrOMNhyVj2YM9FxT5b2tAEIILJyZcQ/Iy7KENTH0gCppX+0XOfZ22Nkiyy5g7Ew5tqbf+Am1WEjiK79ZWVNvupiZieM0chREOTlEV64eOpWzY4ZflbBeOnLTEkFwhAT/KRS/hXswnwKkGYgHou5vEBLN31BLAwQUAAAACAARg0ldwqxftL4AAABeCgAAFAAAAE9FQlBTL3RleHQvY2gxLnhodG1s7ZYxDsMgDEWvgnwA3KhTKiBDD9AzpIkbohJAgEp6+9LkAlWnDCxflr+9vOmJbl0Me1GIs7MSGn6CTgmdyrIUNkrQKfkLYs6Z5zN3YcKmbVtcvzdQTqkflTCzfbJARkJMb0NREyVgOtBDAue4LfkQI6ASuL/c3fgu74266t4nCuxmqXSNEl5lF0ZW46cQ6CuyiqwiO1pUZBVZRXbAqMj+QzYvE4th2IyuzDi44o3c2wlYb5KEdbO73evwq4fqA1BLAwQUAAAACAARg0ldZHXeb3sAAABuBgAAFAAAAE9FQlBTL3RleHQvY2gyLnhodG1ss7GvyM1RKEstKs7Mz7NVMtQzULK3s8koAQoCJfKKbZUySkoKrPT1y8vL9cqN9fKL0vUNLS0t9StAapTsbJLyUyqBGgztnDMSC0pSixRCyvNt9IF8mwK7ktSKEoURSdjoF4wGwGgAjAbAaAAMvEMGNAD0IRWEPqi6sAMAUEsDBBQAAAAIABGDSV1Z/N+RTAAAAEoAAAAPAAAAT0VCUFMvc3R5bGUuY3NzS8pPqaxOy88r0U1LzM3MqbQqTi3KTKtVyDCsTs7PyS+yUjY2Nq5V0KuoTkpMzk4vyi/NS7EqLcrRUMrMTddPzi9LLdIryEtX0qwFAFBLAwQUAAAACAARg0ldIz7EUT8AAABFAAAAEwAAAE9FQlBTL2ltZy9jb3Zlci5wbmfrDPBz5+WS4mJgYOD19HAJAtKMIMzBBiTlRY90giVcHEMqbiX/+P/fnoH1H9O/5aYHbgDFGTxd/VzWOSU0AQBQSwECFAMUAAAAAAAAACEAb2GrLBQAAAAUAAAACAAAAAAAAAAAAAAAgAEAAAAAbWltZXR5cGVQSwECFAMUAAAACAARg0ldQcGqLZwAAADfAAAAFgAAAAAAAAAAAAAAgAE6AAAATUVUQS1JTkYvY29udGFpbmVyLnhtbFBLAQIUAxQAAAAIABGDSV0KYcgPZQEAAP0CAAARAAAAAAAAAAAAAACAAQoBAABPRUJQUy9jb250ZW50Lm9wZlBLAQIUAxQAAAAIABGDSV1uwojJqAAAAAUBAAAPAAAAAAAAAAAAAACAAZ4CAABPRUJQUy9uYXYueGh0bWxQSwECFAMUAAAACAARg0ldwqxftL4AAABeCgAAFAAAAAAAAAAAAAAAgAFzAwAAT0VCUFMvdGV4dC9jaDEueGh0bWxQSwECFAMUAAAACAARg0ldZHXeb3sAAABuBgAAFAAAAAAAAAAAAAAAgAFjBAAAT0VCUFMvdGV4dC9jaDIueGh0bWxQSwECFAMUAAAACAARg0ldWfzfkUwAAABKAAAADwAAAAAAAAAAAAAAgAEQBQAAT0VCUFMvc3R5bGUuY3NzUEsBAhQDFAAAAAgAEYNJXSM+xFE/AAAARQAAABMAAAAAAAAAAAAAAIABiQUAAE9FQlBTL2ltZy9jb3Zlci5wbmdQSwUGAAAAAAgACAD4AQAA+QUAAAAA';
+function b64ToBuf(b64) {
+  const bin = atob(b64);
+  const u8 = new Uint8Array(bin.length);
+  for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  return u8.buffer;
 }
-$('#bootbar-reload').addEventListener('click', () => location.reload());
-
-/* One screen that answers "why isn't this working" without a debugger. */
-async function diagnostics() {
+async function selfTest() {
   const L = [];
-  const yn = v => v ? 'yes' : 'no';
-  L.push('Shelfmark diagnostics — ' + new Date().toISOString());
-  L.push('URL: ' + location.origin);
-  L.push('Standalone (installed): ' + yn(matchMedia('(display-mode: standalone)').matches));
+  const step = async (name, fn) => {
+    try { const r = await fn(); L.push('PASS  ' + name + (r ? ' — ' + r : '')); return true; }
+    catch (e) { L.push('FAIL  ' + name + ' — ' + e.message); return false; }
+  };
+  L.push('Shelfmark self-test — ' + new Date().toLocaleString());
+  L.push('');
+  await step('Browser can decompress zip data', async () => {
+    if (typeof DecompressionStream !== 'function') throw new Error('DecompressionStream missing');
+    return 'DecompressionStream present';
+  });
+  const buf = b64ToBuf(TEST_EPUB_B64);
+  let z = null;
+  await step('Read the zip directory', async () => { z = readZip(buf); return z.names.length + ' entries'; });
+  if (!z) { return L.join('\n'); }
+  await step('Inflate a compressed entry', async () => {
+    const t = await z.text('META-INF/container.xml');
+    if (!t.includes('rootfile')) throw new Error('unexpected contents');
+    return t.length + ' chars';
+  });
+  let pkg = null;
+  await step('Parse the package file', async () => {
+    const opf = parseContainer(await z.text('META-INF/container.xml'));
+    pkg = parseOpf(await z.text(opf), opf);
+    if (!pkg.spine.length) throw new Error('no spine');
+    return pkg.title + ' / ' + pkg.author + ' · ' + pkg.spine.length + ' sections';
+  });
+  await step('Read the table of contents', async () => {
+    const toc = parseNav(await z.text(pkg.navHref), pkg.navHref);
+    if (!toc.length) throw new Error('empty toc');
+    return toc.map(t => t.label).join(', ');
+  });
+  await step('Extract the cover image', async () => {
+    const b = await z.blob(pkg.coverHref);
+    if (b.size < 10) throw new Error('cover empty');
+    return b.size + ' bytes, ' + b.type;
+  });
+  await step('Render a chapter into the page frame', async () => {
+    const html = await z.text(pkg.spine[0].href);
+    const doc = DP.parseFromString(html, 'application/xhtml+xml');
+    if (doc.getElementsByTagName('parsererror').length) throw new Error('chapter would not parse');
+    const words = (doc.body.textContent || '').trim().split(/\s+/).length;
+    const f = document.createElement('iframe');
+    f.setAttribute('sandbox', 'allow-same-origin');
+    f.style.cssText = 'position:fixed;left:-9999px;width:600px;height:400px';
+    document.body.appendChild(f);
+    await new Promise(res => { f.onload = res; f.srcdoc = '<!doctype html><body style="column-width:560px">' + doc.body.innerHTML; setTimeout(res, 3000); });
+    const w = f.contentDocument?.body.scrollWidth || 0;
+    f.remove();
+    if (!w) throw new Error('frame did not render');
+    return words + ' words, paginates to ' + Math.max(1, Math.round(w / 608)) + ' columns';
+  });
+  await step('Write and read back from storage', async () => {
+    const id = '__selftest';
+    await DB.put('files', { id, data: buf, cover: null });
+    const back = await DB.get('files', id);
+    await DB.del('files', id);
+    if (!back?.data || back.data.byteLength !== buf.byteLength) throw new Error('round trip mismatch');
+    return back.data.byteLength + ' bytes';
+  });
+  L.push('');
+  L.push(L.some(x => x.startsWith('FAIL')) ? 'Something above failed — paste this to get it fixed.'
+    : 'All checks passed: this device can open EPUB and CBZ books.');
+  return L.join('\n');
+}
+$('#selftest').addEventListener('click', async () => {
+  const out = $('#diag'), btn = $('#selftest');
+  btn.disabled = true; btn.textContent = 'Testing…';
+  out.classList.add('show'); out.textContent = 'Running…';
+  try { out.textContent = await selfTest(); } catch (e) { out.textContent = 'Self-test crashed: ' + e.message; }
+  btn.disabled = false; btn.textContent = 'Run self-test'; $('#diag-copy').style.display = '';
+});
+
+async function diagnostics() {
+  const L = [], yn = v => v ? 'yes' : 'no';
+  L.push('Shelfmark diagnostics — ' + new Date().toLocaleString());
+  L.push('Origin: ' + location.origin + ' | installed: ' + yn(matchMedia('(display-mode: standalone)').matches));
+  L.push('User agent: ' + navigator.userAgent);
+  L.push('');
+  L.push('-- engine (all built in, no external library) --');
+  L.push('DecompressionStream: ' + yn(typeof DecompressionStream === 'function'));
+  L.push('DOMParser: ' + yn(typeof DOMParser === 'function') + ' | createImageBitmap: ' + yn(typeof createImageBitmap === 'function'));
+  L.push('pdf.js (optional, for PDF page flips): ' + yn(!!self.pdfjsLib));
   L.push('');
   L.push('-- storage --');
-  L.push('IndexedDB present: ' + yn(!!self.indexedDB));
-  L.push('DB open: ' + yn(!!DB.db) + (DB.version ? ' (version ' + DB.version + ', expected ' + SCHEMA + ')' : ''));
+  L.push('IndexedDB: ' + yn(!!self.indexedDB) + ' | open: ' + yn(!!DB.db) + (DB.version ? ' (v' + DB.version + ', expected ' + SCHEMA + ')' : ''));
   L.push('Stores: ' + (DB.db ? [...DB.db.objectStoreNames].join(', ') : 'n/a'));
-  const expect = STORES.map(x => x[0]);
-  L.push('Missing stores: ' + (DB.db ? (expect.filter(n => !DB.db.objectStoreNames.contains(n)).join(', ') || 'none') : 'n/a'));
-  try {
-    L.push('Books: ' + (await DB.all('books')).length + ' | Loans: ' + (await DB.all('loans')).length);
-  } catch (e) { L.push('Read test FAILED: ' + e.message); }
-  try {
-    await DB.put('settings', { k: '__diag', v: Date.now() }); await DB.del('settings', '__diag');
-    L.push('Write test: ok');
-  } catch (e) { L.push('Write test FAILED: ' + e.message); }
-  if (navigator.storage?.estimate) {
-    const e = await navigator.storage.estimate();
-    L.push('Used: ' + ((e.usage || 0) / 1048576).toFixed(1) + ' MB of ' + ((e.quota || 0) / 1073741824).toFixed(2) + ' GB');
-    if (navigator.storage.persisted) L.push('Persistent storage granted: ' + yn(await navigator.storage.persisted()));
-  }
+  try { L.push('Books: ' + (await DB.all('books')).length + ' | Loans: ' + (await DB.all('loans')).length); }
+  catch (e) { L.push('Read test FAILED: ' + e.message); }
+  try { await DB.put('settings', { k: '__d', v: 1 }); await DB.del('settings', '__d'); L.push('Write test: ok'); }
+  catch (e) { L.push('Write test FAILED: ' + e.message); }
+  try { if (navigator.storage?.estimate) { const e = await navigator.storage.estimate();
+    L.push('Used ' + ((e.usage || 0) / 1048576).toFixed(1) + ' MB of ' + ((e.quota || 0) / 1073741824).toFixed(2) + ' GB');
+    if (navigator.storage.persisted) L.push('Persistent: ' + yn(await navigator.storage.persisted())); } } catch {}
   L.push('');
-  L.push('-- libraries (needed to read books) --');
-  const st = window.__libStatus || {};
-  L.push('JSZip:   ' + yn(!!self.JSZip) + '  (' + (st.jszip || 'not attempted') + ')');
-  L.push('epub.js: ' + yn(!!self.ePub) + '  (' + (st.epub || 'not attempted') + ')');
-  L.push('pdf.js:  ' + yn(!!self.pdfjsLib) + '  (' + (st.pdf || 'not attempted') + ')');
-  if (self.pdfjsLib) L.push('pdf worker: ' + (pdfjsLib.GlobalWorkerOptions.workerSrc || 'unset'));
+  L.push('-- books on shelf --');
+  for (const b of S.books.slice(0, 12))
+    L.push(' · [' + b.kind + '] ' + b.title.slice(0, 40) + ' — ' + ((b.size || 0) / 1048576).toFixed(1) + ' MB, ' + Math.round((b.pct || 0) * 100) + '%');
+  if (!S.books.length) L.push('(none)');
   L.push('');
   L.push('-- service worker --');
-  L.push('Supported: ' + yn('serviceWorker' in navigator) + '   controlling this page: ' + yn(!!navigator.serviceWorker?.controller));
-  try {
-    const regs = await navigator.serviceWorker.getRegistrations();
-    L.push('Registrations: ' + regs.length + (regs[0]?.active ? ' (active)' : ''));
-  } catch {}
-  L.push('Book-parts route (/_book/): ' + (await swCanServe() ? 'working' : 'NOT serving — unpacked fast path is off'));
+  L.push('Supported: ' + yn('serviceWorker' in navigator) + ' | controlling: ' + yn(!!navigator.serviceWorker?.controller));
+  try { const regs = await navigator.serviceWorker.getRegistrations(); L.push('Registrations: ' + regs.length); } catch {}
   L.push('');
   L.push('-- network --');
-  for (const [name, url] of [['Gutendex', 'https://gutendex.com/books?page=1'], ['recommend API', '/api/recommend']]) {
+  for (const [name, url, init] of [
+    ['Gutendex', GUTENDEX + '?page=1', {}],
+    ['recommend API', '/api/recommend', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"history":[],"loans":[]}' }],
+  ]) {
     try {
-      const r = await withTimeout(fetch(url, name === 'recommend API'
-        ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{"history":[],"loans":[]}' } : {}), 8000, name);
+      const r = await withTimeout(fetch(url, init), 10000, name);
       let extra = '';
-      if (name === 'recommend API' && !r.ok) { const j = await r.json().catch(() => ({})); extra = ' — ' + (j.detail || j.error || ''); }
+      if (!r.ok) { const j = await r.json().catch(() => ({})); extra = ' — ' + (j.detail || j.error || '').slice(0, 140); }
       L.push(name + ': HTTP ' + r.status + extra);
     } catch (e) { L.push(name + ': ' + e.message); }
   }
@@ -1737,38 +2071,28 @@ $('#diag-copy').addEventListener('click', async () => {
   catch { toast('Select the text and copy it manually'); }
 });
 
+/* ---------- boot ---------- */
 (async function boot() {
-  const libs = await Promise.race([window.__libs, new Promise(r => setTimeout(() => r(window.__libStatus), 20000))]);
-  const dead = Object.entries(libs || {}).filter(([, v]) => v === 'FAILED' || v === null).map(([k]) => k);
-  if (dead.includes('jszip') || dead.includes('epub')) {
-    bootError('Could not load the reader libraries (' + dead.join(', ') + '). Check your connection and reload — once loaded they are cached for offline use.');
-  }
-  try {
-    await DB.open();
-  } catch (e) {
-    bootError(e.message + ' (Settings → Run diagnostics for details.)');
-    showTab('settings');
-    return;   // stop here rather than running on a broken database
-  }
+  if (typeof DecompressionStream !== 'function')
+    bootError('This browser is too old to unzip book files. Shelfmark needs a recent Chrome, Safari, Edge or Firefox.');
+  try { await DB.open(); }
+  catch (e) { bootError(e.message + '  (Settings → Run diagnostics for details.)'); showTab('settings'); return; }
   await Settings.load();
-  applyAppTheme(Settings.get('theme', 'night')); syncAnim();
-  S.books = await DB.all('books'); S.loans = await DB.all('loans');
-  renderShelf(); renderLoans(); updateCounts(); updateStorageNote(); refreshNotifButton();
-  if (S.books.length && !S.loans.length) showTab('shelf');
-  const urgent = S.loans.some(l => l.status !== 'returned' && daysUntil(l.due) <= 3);
-  if (urgent) showTab('loans');
-  checkDueNotifications(false);
-  if ('serviceWorker' in navigator) {
-    try {
-      await navigator.serviceWorker.register('sw.js');
-      // On the very first visit the page isn't controlled yet; claim happens on activate.
-      if (!navigator.serviceWorker.controller) await Promise.race([
-        new Promise(r => navigator.serviceWorker.addEventListener('controllerchange', r, { once: true })),
-        new Promise(r => setTimeout(r, 1500)),
-      ]);
-    } catch {}
+  applyAppTheme(Settings.get('theme', 'night'));
+  syncAnim();
+  try { S.books = await DB.all('books'); S.loans = await DB.all('loans'); }
+  catch (e) { bootError('Could not read your shelf: ' + e.message); }
+  // Books saved by older versions used a different position field
+  for (const b of S.books) {
+    if (!b.pos) b.pos = b.kind === 'epub' ? { idx: 0, page: 0 } : { page: b.page || 0 };
+    if (!Array.isArray(b.bookmarks)) b.bookmarks = [];
   }
-  if (navigator.storage?.persist) navigator.storage.persist();
+  renderShelf(); renderLoans(); updateCounts(); updateStorageNote(); refreshNotifButton();
+  if (S.books.length) showTab('shelf');
+  if (S.loans.some(l => l.status !== 'returned' && daysUntil(l.due) <= 3)) showTab('loans');
+  checkDue(false);
+  if ('serviceWorker' in navigator) { try { await navigator.serviceWorker.register('sw.js'); } catch {} }
+  try { navigator.storage?.persist?.(); } catch {}
 })().catch(e => bootError('Startup problem: ' + e.message));
 </script>
 </body>
