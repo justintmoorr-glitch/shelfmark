@@ -1,8 +1,8 @@
 // Shelfmark service worker: app shell precached, CDN libs + fonts cached on first use.
 // Book files are NOT handled here; they live in IndexedDB.
-const VERSION = 'shelfmark-v3';
+const VERSION = 'shelfmark-v4';
 const SHELL = ['./', './index.html', './manifest.json'];
-const RUNTIME_HOSTS = ['cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
+const RUNTIME_HOSTS = ['cdn.jsdelivr.net', 'unpkg.com', 'cdnjs.cloudflare.com', 'fonts.googleapis.com', 'fonts.gstatic.com'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(VERSION).then(c => c.addAll(SHELL)).then(() => self.skipWaiting()));
@@ -68,14 +68,16 @@ self.addEventListener('fetch', e => {
 
   // App shell: network first, fall back to cache (so deploys show up, but offline still works)
   if (url.origin === self.location.origin) {
-    e.respondWith(fetch(e.request).then(r => { const copy = r.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); return r; })
+    e.respondWith(fetch(e.request).then(r => { if (r.ok) { const copy = r.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); } return r; })
       .catch(() => caches.match(e.request).then(r => r || caches.match('./index.html'))));
     return;
   }
   // Libraries and fonts: cache first
   if (RUNTIME_HOSTS.includes(url.hostname)) {
     e.respondWith(caches.match(e.request).then(hit => hit || fetch(e.request).then(r => {
-      const copy = r.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); return r;
+      // Only cache a good response; caching a 404 would make a bad URL permanent.
+      if (r.ok || r.type === 'opaque') { const copy = r.clone(); caches.open(VERSION).then(c => c.put(e.request, copy)); }
+      return r;
     })));
   }
 });

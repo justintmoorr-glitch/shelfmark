@@ -12,9 +12,59 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Crimson+Pro:ital,wght@0,400;0,500;0,600;1,400&family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/epub.js/0.3.93/epub.min.js"></script>
+
+<script>
+/* Library loader.
+   Each library is tried across several CDNs in order, because a single hardcoded
+   URL is a single point of failure — and cdnjs does not carry epub.js 0.3.x at all.
+   JSZip must land before epub.js, which uses it for archived books. */
+window.__libStatus = { jszip: null, epub: null, pdf: null };
+window.__libs = (async function () {
+  const load = src => new Promise((res, rej) => {
+    const el = document.createElement('script');
+    el.src = src; el.async = false;
+    el.onload = () => res(src);
+    el.onerror = () => rej(new Error(src));
+    document.head.appendChild(el);
+  });
+  async function first(key, present, urls) {
+    if (present()) { window.__libStatus[key] = 'already present'; return true; }
+    for (const u of urls) {
+      try {
+        await load(u);
+        if (present()) { window.__libStatus[key] = new URL(u).host; console.debug('[shelfmark] ' + key + ' ←', u); return true; }
+        console.warn('[shelfmark] ' + u + ' loaded but did not define ' + key);
+      } catch (e) { console.warn('[shelfmark] ' + key + ' not available at ' + e.message); }
+    }
+    window.__libStatus[key] = 'FAILED';
+    console.error('[shelfmark] could not load ' + key + ' from any CDN');
+    return false;
+  }
+  await first('jszip', () => !!window.JSZip, [
+    'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+    'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+  ]);
+  await first('epub', () => !!window.ePub, [
+    'https://cdn.jsdelivr.net/npm/epubjs@0.3.93/dist/epub.min.js',
+    'https://unpkg.com/epubjs@0.3.93/dist/epub.min.js',
+    'https://cdn.jsdelivr.net/npm/epubjs@0.3/dist/epub.min.js',
+  ]);
+  const pdfUrls = [
+    'https://cdn.jsdelivr.net/npm/pdfjs-dist@3.11.174/build/pdf.min.js',
+    'https://unpkg.com/pdfjs-dist@3.11.174/build/pdf.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js',
+  ];
+  await first('pdf', () => !!window.pdfjsLib, pdfUrls);
+  if (window.pdfjsLib) {
+    // The worker has to come from the same build that loaded.
+    const host = window.__libStatus.pdf;
+    const match = pdfUrls.find(u => new URL(u).host === host) || pdfUrls[0];
+    window.pdfjsLib.GlobalWorkerOptions.workerSrc = match.replace('pdf.min.js', 'pdf.worker.min.js');
+  }
+  return window.__libStatus;
+})();
+</script>
 <style>
 :root{
   /* Night: the reading-lamp palette. Dark moss walls, parchment text, amber lamp light. Almost no blue. */
@@ -645,7 +695,12 @@ const Settings = {
    over /_book/<id>/<path> so epub.js can fetch chapters lazily.
    ===================================================================== */
 const UNPACK_SRC = `
-importScripts('https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js');
+for (const u of [
+  'https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js',
+  'https://unpkg.com/jszip@3.10.1/dist/jszip.min.js',
+  'https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js',
+]) { try { importScripts(u); if (self.JSZip) break; } catch (e) {} }
+if (!self.JSZip) { self.postMessage({ error: 'JSZip unavailable in worker' }); }
 self.onmessage = async e => {
   try {
     const zip = await JSZip.loadAsync(e.data.buf);
@@ -786,7 +841,6 @@ $('#url-go').addEventListener('click', async () => {
 const IMG_RE = /\.(jpe?g|png|webp|gif|avif)$/i;
 const natural = (a, b) => a.localeCompare(b, undefined, { numeric: true, sensitivity: 'base' });
 
-if (window.pdfjsLib) pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
 async function renderPdfPage(doc, i, scale) {
   const page = await doc.getPage(i + 1);
   const vp0 = page.getViewport({ scale: 1 });
@@ -797,10 +851,12 @@ async function renderPdfPage(doc, i, scale) {
   return await new Promise(r => c.toBlob(r, 'image/jpeg', .9));
 }
 async function sniff(buf) {
-  if (!self.JSZip || !self.ePub) throw new Error('The reader libraries did not load — connect to the internet once so they can be cached, then try again');
+  if (!self.JSZip || !self.ePub) throw new Error(
+    'Reader library missing (' + [!self.JSZip && 'JSZip', !self.ePub && 'epub.js'].filter(Boolean).join(' + ') +
+    '). Reload while online; Settings → Run diagnostics shows where it failed.');
   const head = new TextDecoder('latin1').decode(new Uint8Array(buf.slice(0, 5)));
   if (head.startsWith('%PDF')) {
-    if (!window.pdfjsLib) throw new Error('The PDF library did not load. Check your connection and try again.');
+    if (!window.pdfjsLib) throw new Error('The PDF library did not load. Reload while online and try again.');
     const doc = await pdfjsLib.getDocument({ data: buf.slice(0) }).promise;
     return { kind: 'pdf', doc, pages: doc.numPages };
   }
@@ -1643,7 +1699,11 @@ async function diagnostics() {
   }
   L.push('');
   L.push('-- libraries (needed to read books) --');
-  L.push('JSZip: ' + yn(!!self.JSZip) + '   epub.js: ' + yn(!!self.ePub) + '   pdf.js: ' + yn(!!self.pdfjsLib));
+  const st = window.__libStatus || {};
+  L.push('JSZip:   ' + yn(!!self.JSZip) + '  (' + (st.jszip || 'not attempted') + ')');
+  L.push('epub.js: ' + yn(!!self.ePub) + '  (' + (st.epub || 'not attempted') + ')');
+  L.push('pdf.js:  ' + yn(!!self.pdfjsLib) + '  (' + (st.pdf || 'not attempted') + ')');
+  if (self.pdfjsLib) L.push('pdf worker: ' + (pdfjsLib.GlobalWorkerOptions.workerSrc || 'unset'));
   L.push('');
   L.push('-- service worker --');
   L.push('Supported: ' + yn('serviceWorker' in navigator) + '   controlling this page: ' + yn(!!navigator.serviceWorker?.controller));
@@ -1678,6 +1738,11 @@ $('#diag-copy').addEventListener('click', async () => {
 });
 
 (async function boot() {
+  const libs = await Promise.race([window.__libs, new Promise(r => setTimeout(() => r(window.__libStatus), 20000))]);
+  const dead = Object.entries(libs || {}).filter(([, v]) => v === 'FAILED' || v === null).map(([k]) => k);
+  if (dead.includes('jszip') || dead.includes('epub')) {
+    bootError('Could not load the reader libraries (' + dead.join(', ') + '). Check your connection and reload — once loaded they are cached for offline use.');
+  }
   try {
     await DB.open();
   } catch (e) {
